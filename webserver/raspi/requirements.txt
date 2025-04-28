@@ -1,0 +1,5 @@
+opencv-python
+numpy
+uvloop; platform_system != "Windows"
+winloop; platform_system != "Linux"
+av

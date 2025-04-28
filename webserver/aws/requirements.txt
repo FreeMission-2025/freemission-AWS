@@ -1,0 +1,7 @@
+blacksheep[full]
+uvloop; platform_system != "Windows"
+winloop; platform_system != "Linux"
+MarkupSafe
+opencv-python
+av
+hypercorn[h3]

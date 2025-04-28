@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MJPEG Stream with FPS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #fps {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 24px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        #mjpeg {
+            max-width: 100%;
+            border: 1px solid #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Stream</h1>
+    <!-- Modify the endpoint either jpg or video stream -->
+    <img id="mjpeg" src="https://127.0.0.1:8000/jpg_stream" /> 
+
+</body>
+</html>
