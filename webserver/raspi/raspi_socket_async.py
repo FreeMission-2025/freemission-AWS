@@ -129,8 +129,6 @@ async def main():
             _, encoded_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
             encoded_frame = encoded_frame.tobytes()
 
-            print(len(encoded_frame))
-
             await send_frame(protocol, encoded_frame, (EC2_UDP_IP, EC2_UDP_PORT))
    
     except asyncio.CancelledError:

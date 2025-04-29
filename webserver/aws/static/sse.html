@@ -1,0 +1,49 @@
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// Create WebCodecs VideoDecoder
+const decoder = new VideoDecoder({
+    output: frame => {
+        canvas.width = frame.codedWidth;
+        canvas.height = frame.codedHeight;
+        ctx.drawImage(frame, 0, 0);
+        frame.close();
+    },
+    error: e => console.error('Decoder error:', e)
+});
+
+decoder.configure({
+    codec: 'avc1.64001E', // H264 codec
+    hardwareAcceleration: "prefer-hardware"
+});
+
+// Open SSE connection
+const eventSource = new EventSource('https://127.0.0.1:8000/h264_stream');
+
+eventSource.onmessage = async (event) => {
+    try {
+        const data = JSON.parse(event.data);
+        const base64Frame = data.message;
+
+        const rawFrame = Uint8Array.from(atob(base64Frame), c => c.charCodeAt(0));
+
+        const chunk = new EncodedVideoChunk({
+            timestamp: performance.now() * 1000, // microseconds
+            type: "key", // or "delta", but for simplicity let's assume "key"
+            data: rawFrame
+        });
+
+        decoder.decode(chunk);
+
+    } catch (e) {
+        console.error('Error decoding frame:', e);
+    }
+};
+
+eventSource.onerror = (err) => {
+    console.error('SSE error:', err);
+};
+</script>

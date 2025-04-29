@@ -72,36 +72,6 @@ class H264_JPG_UDPProtocol(asyncio.DatagramProtocol):
         print(f"UDP connection established")
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]):
-        ''' 
-        """Handle the received UDP data"""
-        try:
-            #print(f"Received {len(data)} bytes from {addr}")
-            
-            start_time = time.time()  # Start time for frame processing
-            
-            np_arr = np.frombuffer(data, np.uint8)  # Convert byte data to numpy array
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # Decode the image
-
-            if frame is None:
-                print("Error: Failed to decode frame.")
-                return
-
-            # Encode the frame as JPEG
-            _, buffer = cv2.imencode(".jpg", frame)
-            frame_bytes = buffer.tobytes()
-
-            # Put frame in all connected client's queues
-            timestamped_frame = (time.time(), frame_bytes)
-
-            for frame_queue in self.frame_queue:
-                frame_queue.put_nowait(timestamped_frame)
-                
-            # Calculate latency (time taken for frame processing)
-            # latency = time.time() - start_time 
-            # print(f"Frame latency: {latency:.4f} seconds")
-        except:
-            pass
-        '''
         try:
             # Clean up old frames
             self.cleanup_old_frames(time.time())
@@ -169,36 +139,6 @@ class H264_VideoProtocol(asyncio.DatagramProtocol):
         print(f"UDP connection established")
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]):
-        ''' 
-        """Handle the received UDP data"""
-        try:
-            #print(f"Received {len(data)} bytes from {addr}")
-            
-            start_time = time.time()  # Start time for frame processing
-            
-            np_arr = np.frombuffer(data, np.uint8)  # Convert byte data to numpy array
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # Decode the image
-
-            if frame is None:
-                print("Error: Failed to decode frame.")
-                return
-
-            # Encode the frame as JPEG
-            _, buffer = cv2.imencode(".jpg", frame)
-            frame_bytes = buffer.tobytes()
-
-            # Put frame in all connected client's queues
-            timestamped_frame = (time.time(), frame_bytes)
-
-            for frame_queue in self.frame_queue:
-                frame_queue.put_nowait(timestamped_frame)
-                
-            # Calculate latency (time taken for frame processing)
-            # latency = time.time() - start_time 
-            # print(f"Frame latency: {latency:.4f} seconds")
-        except:
-            pass
-        '''
         try:
             # Clean up old frames
             self.cleanup_old_frames(time.time())

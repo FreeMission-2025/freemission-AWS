@@ -181,7 +181,6 @@ async def main():
         while True:
             if not encode_queue.empty():
                 encoded_frame = await loop.run_in_executor(None, encode_queue.get)
-                print(len(encoded_frame))
                 await send_frame(protocol, encoded_frame, (EC2_UDP_IP, EC2_UDP_PORT))
             else:
                 await asyncio.sleep(0.02)
