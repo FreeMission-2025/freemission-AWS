@@ -7,8 +7,8 @@ from blacksheep import Application, Request, Response, StreamedContent, get, Web
 from blacksheep.server.compression import GzipMiddleware
 from blacksheep.server.sse import ServerSentEvent
 from blacksheep.contents import HTMLContent
-
 import os
+
 app = Application(show_error_details=True)
 app.use_cors(
     allow_methods="*",
@@ -24,34 +24,58 @@ def home():
 '''
     Receive Video From Raspberry PI
 '''
-from constants import frame_queues, decode_queue
-from JPG_udp import JpgUDPProtocol
-from H264_udp import H264_JPG_UDPProtocol, DecodeVideo, H264_VideoProtocol
+from constants import frame_queues, decode_queue, decode_task, encode_queue, encode_task, EC2Port, INCOMING_FORMAT, OUTGOING_FORMAT
+from JPG_udp import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, EncodeVideo
+from H264_udp import H264_TO_JPG_Protocol, DecodeVideo, H264_TO_H264_Protocol
 
-EC2_UDP_PORT_JPG = 8085
-EC2_UDP_PORT_VIDEO_TO_JPG = 8086
-EC2_UDP_PORT_VIDEO_CODEC = 8087
-
-# listen for UDP packets from raspi (JPG)
 ''' 
+# listen for UDP packets from raspi (JPG TO JPG)
 @app.after_start
 async def start_udp_server_jpg():
     loop = asyncio.get_event_loop()
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: JpgUDPProtocol(frame_queues), local_addr=('0.0.0.0', EC2_UDP_PORT_JPG)
+        lambda: JPG_TO_JPG_PROTOCOL(frame_queues), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
     )
-    print(f"UDP listener (JPG) started on 0.0.0.0:{EC2_UDP_PORT_JPG}")
+    print(f"UDP listener (JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
 '''
 
-# listen for UDP packets from raspi (Video to JPG)
+''' 
+# listen for UDP packets from raspi (JPG TO H264)
+@app.after_start
+async def start_udp_server_jpg_h264():
+    loop = asyncio.get_event_loop()
+    transport, protocol = await loop.create_datagram_endpoint(
+        lambda: JPG_TO_H264_PROTOCOL(encode_queue), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
+    )
+    print(f"UDP listener (JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
+
+@app.after_start
+async def create_encode_task():
+    global encode_task
+    video_decoder = EncodeVideo(encode_queue, frame_queues)
+    encode_task = asyncio.create_task(video_decoder.encode())
+
+@app.on_stop
+async def shutdown_tasks():
+    global encode_task
+    if encode_task is not None:
+        print("Shutting down decode task...")
+        encode_task.cancel()
+        try:
+            await encode_task
+        except asyncio.CancelledError:
+            print("Encode task was cancelled cleanly.")
 '''
+
+''' 
+# listen for UDP packets from raspi (H264 TO JPG)
 @app.after_start
 async def start_udp_server_video():
     loop = asyncio.get_event_loop()
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: H264_JPG_UDPProtocol(decode_queue), local_addr=('0.0.0.0', EC2_UDP_PORT_VIDEO_TO_JPG)
+        lambda: H264_TO_JPG_Protocol(decode_queue), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_JPG.value)
     )
-    print(f"UDP listener (Video JPG) started on 0.0.0.0:{EC2_UDP_PORT_VIDEO_TO_JPG}")
+    print(f"UDP listener (Video JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_JPG.value}")
 
 @app.after_start
 async def create_decode_task():
@@ -70,18 +94,19 @@ async def shutdown_tasks():
         except asyncio.CancelledError:
             print("Decode task was cancelled cleanly.")
 '''
-            
-# listen for UDP packets from raspi (Video Encoded)
+
+# listen for UDP packets from raspi (H264 TO H264)
 @app.after_start
 async def start_udp_server_video_h264():
     loop = asyncio.get_event_loop()
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: H264_VideoProtocol(frame_queue=frame_queues), local_addr=('0.0.0.0', EC2_UDP_PORT_VIDEO_CODEC)
+        lambda: H264_TO_H264_Protocol(frame_queue=frame_queues), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_H264.value)
     )
-    print(f"UDP listener (Video H264) started on 0.0.0.0:{EC2_UDP_PORT_VIDEO_CODEC}")
+    print(f"UDP listener (Video H264) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_H264.value}")
+
 
 ''' 
-    Video Stream Endpoints (h264 codec)
+    ServerSentEvents: Video Stream Endpoints (h264 codec)
 '''
 @get("/h264_stream")
 async def h264_stream(request: Request) -> AsyncIterable[ServerSentEvent]:
@@ -103,17 +128,19 @@ async def h264_stream(request: Request) -> AsyncIterable[ServerSentEvent]:
                     continue
                 yield ServerSentEvent({"message": encoded_frame})
 
+                await asyncio.sleep(0.005)
             except asyncio.CancelledError:
+                break
+            except KeyboardInterrupt:
                 break
             except Exception as e:
                 print(f"Error in frame generator: {e}")
-            await asyncio.sleep(0.005)
     finally:
         if frame_queue in frame_queues:
             frame_queues.remove(frame_queue)
 
 '''
-    Video Stream Endpoints (JPG)
+    ServerSentEvents: Video Stream Endpoints (JPG)
 '''
 @get("/jpg_stream")
 async def jpg_stream(request: Request):
@@ -139,11 +166,13 @@ async def jpg_stream(request: Request):
                         b"--frame\r\n"
                         b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n\r\n"
                     )
+                    await asyncio.sleep(0.005)
                 except asyncio.CancelledError:
+                    break
+                except KeyboardInterrupt:
                     break
                 except Exception as e:
                     print(f"Error in frame generator: {e}")
-                await asyncio.sleep(0.005)
         finally:
             if frame_queue in frame_queues:
                 frame_queues.remove(frame_queue)
@@ -156,7 +185,9 @@ async def jpg_stream(request: Request):
         )
     )
 
-
+'''
+    Websockets: Video Stream Endpoints (H264)
+'''
 @ws("/ws_h264_stream")
 async def echo(websocket: WebSocket):
     await websocket.accept()
@@ -168,7 +199,7 @@ async def echo(websocket: WebSocket):
         while True:
             msg = await websocket.receive_text()
             if msg == 'READY':
-                print("READYYYY")
+                print("READY TO RECEIVE")
                 break
             await asyncio.sleep(0.02)
         while True:
@@ -181,17 +212,22 @@ async def echo(websocket: WebSocket):
                     continue
 
                 await websocket.send_bytes(frame_bytes)
+                await asyncio.sleep(0.005)
             except asyncio.CancelledError:
+                break
+            except KeyboardInterrupt:
                 break
             except Exception as e:
                 print(f"Error in frame generator: {e}")
-            await asyncio.sleep(0.005)
     except WebSocketDisconnectError:
         return
     finally:
         if frame_queue in frame_queues:
             frame_queues.remove(frame_queue)
 
+'''
+    Static HTML
+'''
 @get("/sse.html")
 async def serve_html(request: Request):
     file_path = "webserver/aws/static/sse.html"

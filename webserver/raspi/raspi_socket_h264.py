@@ -32,7 +32,7 @@ import multiprocessing
     UDP Configuration
 '''
 EC2_UDP_IP = "127.0.0.1"
-EC2_UDP_PORT = 8087
+EC2_UDP_PORT = 8086
 MAX_UDP_PACKET_SIZE = 60000  # Max safe UDP payload size
 CAMERA_INDEX = 0             # Default camera index
 

@@ -13,8 +13,8 @@ ffmpeg_bin = r"C:\ffmpeg\bin"
 os.add_dll_directory(ffmpeg_bin)
 import av
 
-''' FFMPEG pyAV decoder'''
 class DecodeVideo():
+    ''' FFMPEG pyAV decoder'''
     def __init__(self,decode_queue: asyncio.Queue, frame_queue: List[asyncio.Queue]):
         self.decode_queue = decode_queue
         self.frame_queue = frame_queue
@@ -28,7 +28,7 @@ class DecodeVideo():
                 if not self.decode_queue.empty():
                     encoded_packet_bytes = await self.decode_queue.get()
                 else:
-                    await asyncio.sleep(0.02)
+                    await asyncio.sleep(0.005)
                     continue
 
                 packet = av.packet.Packet(encoded_packet_bytes)
@@ -51,14 +51,14 @@ class DecodeVideo():
                         if not q.full():
                             q.put_nowait(timestamped_frame)
             except asyncio.CancelledError:
-                raise
+                break
             except KeyboardInterrupt:
-                return
+                break
             except Exception as e:
                 print(f"error at decode_video: {e}")
     
 
-class H264_JPG_UDPProtocol(asyncio.DatagramProtocol):
+class H264_TO_JPG_Protocol(asyncio.DatagramProtocol):
     ''' Base Class for Non Blocking UDP communication from Raspberry PI to AWS EC2 Server'''
 
     def __init__(self, decode_queue: asyncio.Queue):
@@ -105,6 +105,8 @@ class H264_JPG_UDPProtocol(asyncio.DatagramProtocol):
 
                 if not self.decode_queue.full():
                     self.decode_queue.put_nowait(full_frame)
+        except asyncio.CancelledError:
+            return
         except Exception as e:
             print(f"Error in datagram_received: {e}")
 
@@ -124,7 +126,7 @@ class H264_JPG_UDPProtocol(asyncio.DatagramProtocol):
     def connection_lost(self, exc: Exception):
         print("Closing connection")
 
-class H264_VideoProtocol(asyncio.DatagramProtocol):
+class H264_TO_H264_Protocol(asyncio.DatagramProtocol):
     ''' Base Class for Non Blocking UDP communication from Raspberry PI to AWS EC2 Server'''
 
     def __init__(self, frame_queue: List[asyncio.Queue]):
@@ -174,6 +176,8 @@ class H264_VideoProtocol(asyncio.DatagramProtocol):
                 for q in self.frame_queue:
                     if not q.full():
                         q.put_nowait(timestamped_frame)
+        except asyncio.CancelledError:
+            return
         except Exception as e:
             print(f"Error in datagram_received: {e}")
 
