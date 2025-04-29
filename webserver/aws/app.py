@@ -25,8 +25,8 @@ def home():
     Receive Video From Raspberry PI
 '''
 from constants import frame_queues, decode_queue
-from jpg_udp import JpgUDPProtocol
-from h264_udp import H264_JPG_UDPProtocol, DecodeVideo, H264_VideoProtocol
+from JPG_udp import JpgUDPProtocol
+from H264_udp import H264_JPG_UDPProtocol, DecodeVideo, H264_VideoProtocol
 
 EC2_UDP_PORT_JPG = 8085
 EC2_UDP_PORT_VIDEO_TO_JPG = 8086
