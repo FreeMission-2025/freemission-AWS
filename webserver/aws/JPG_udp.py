@@ -146,11 +146,32 @@ class JPG_TO_JPG_PROTOCOL(asyncio.DatagramProtocol):
     def connection_lost(self, exc: Exception):
         print("Closing connection")
 
-class EncodeVideo():
-    ''' FFMPEG pyAV encoder'''
-    def __init__(self,encode_queue: asyncio.Queue, frame_queue: List[asyncio.Queue]):
+class JPG_TO_H264_Consumer():
+    def __init__(self, output_queue: ShmQueue, encode_queue: asyncio.Queue, frame_queue: List[asyncio.Queue]):
+        self.output_queue = output_queue
         self.encode_queue = encode_queue
-        self.frame_queue = frame_queue
+        self.frame_queue  = frame_queue
+    
+    async def handler(self):
+        loop = asyncio.get_running_loop()
+        while True:
+            try:
+                np_array = await loop.run_in_executor(None, self.output_queue.get)
+
+                if np_array is None:
+                    continue
+
+                if not self.encode_queue.full():
+                    self.encode_queue.put_nowait(np_array)
+
+            except asyncio.CancelledError:
+                break
+            except KeyboardInterrupt:
+                break
+            except QueueStoppedError:
+                break
+            except Exception as e:
+                print(f"error at handler: {e}")
 
     async def encode (self):
         encoder = av.CodecContext.create('libx264', 'w')
@@ -169,17 +190,16 @@ class EncodeVideo():
                 else:
                     await asyncio.sleep(0)
                     continue
+                
+                if not isinstance(frame, cv2.typing.MatLike):
+                    frame = np.frombuffer(frame, dtype=np.uint8)
+                    frame_bgr = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+                    if frame_bgr is None:
+                        continue
+                else:
+                    frame_bgr = frame
 
-                if frame is None:
-                    continue
-
-                np_array = np.frombuffer(frame, dtype=np.uint8)
-                img_bgr = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
-
-                if img_bgr is None:
-                    continue
-
-                img_yuv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YUV_I420)
+                img_yuv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YUV_I420)
                 video_frame = av.VideoFrame.from_ndarray(img_yuv, format='yuv420p')
                 encoded_packet = await loop.run_in_executor(None, lambda: encoder.encode(video_frame))
 
@@ -201,14 +221,23 @@ class EncodeVideo():
 class JPG_TO_H264_PROTOCOL(asyncio.DatagramProtocol):
     ''' Base Class for Non Blocking UDP communication from Raspberry PI to AWS EC2 Server'''
 
-    def __init__(self, encode_queue: asyncio.Queue ):
+    def __init__(self, input_queue: ShmQueue | asyncio.Queue, inference_enabled = True ):
+        self.inference_enabled = inference_enabled
         self.transport = None
-        self.encode_queue = encode_queue
         self.frames_in_progress = {}
+        self.loop = asyncio.get_event_loop()
 
-        # Wheter we allow partial frames to be processed with null bytes, then try to decode. 
-        # or straight up discard
-        self.ALLOW_PARTIAL = True
+        self.input_queue: Optional[ShmQueue] = None
+        self.frame_queues: Optional[list[asyncio.Queue]] = None
+
+        if inference_enabled:
+            assert isinstance(input_queue, ShmQueue), \
+                "When inference is enabled, input_queue must be a ShmQueue instance."
+            self.input_queue = input_queue
+        else:
+            assert isinstance(input_queue, asyncio.Queue), \
+                "When inference is disabled, input_queue must be a asyncio.Queue instances."
+            self.encode_queue = input_queue
 
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
@@ -247,8 +276,13 @@ class JPG_TO_H264_PROTOCOL(asyncio.DatagramProtocol):
                 # Cleanup
                 del self.frames_in_progress[frame_id]
 
-                if not self.encode_queue.full():
-                    self.encode_queue.put_nowait(full_frame)
+                if self.inference_enabled:
+                    np_arr = np.frombuffer(full_frame, np.uint8)
+                    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                    self.loop.run_in_executor(None, lambda: self.input_queue.put(frame)) 
+                else:
+                    if not self.encode_queue.full():
+                        self.encode_queue.put_nowait(full_frame)
         except asyncio.CancelledError:
             return
         except Exception as e:

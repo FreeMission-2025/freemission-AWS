@@ -27,11 +27,10 @@ def home():
 '''
 from constants import  EC2Port, INCOMING_FORMAT, OUTGOING_FORMAT, INFERENCE_ENABLED 
 from constants import frame_queues, decode_queue, decode_task, encode_queue, encode_task,consumer_task, input_queue, output_queue, infer_process, transport
-from JPG_udp import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, EncodeVideo, JPG_TO_JPG_Consumer
+from JPG_udp import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer
 from H264_udp import H264_TO_JPG_Protocol, DecodeVideo, H264_TO_H264_Protocol
 from inference import ShmQueue, ObjectDetection
 
-# listen for UDP packets from raspi (JPG TO JPG)
 @app.after_start
 async def after_start_server():
     current_file = os.path.abspath(__file__)
@@ -66,8 +65,36 @@ async def after_start_server():
             consumer = JPG_TO_JPG_Consumer(output_queue, frame_queues)
             consumer_task = asyncio.create_task(consumer.handler())
 
+    async def handle_jpg_to_h264(): 
+        global input_queue, output_queue, infer_process, transport, consumer_task, encode_task
+        input_queue  = ShmQueue(shape=(720,1280,3), capacity=120)
+        output_queue = ShmQueue(shape=(720,1280,3), capacity=120)
+
+        loop = asyncio.get_event_loop()
+        protocol_input = input_queue if INFERENCE_ENABLED else encode_queue
+        transport, protocol = await loop.create_datagram_endpoint(
+            lambda: JPG_TO_H264_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_H264.value)
+        )
+        print(f"UDP listener (JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_H264.value}")
+        
+
+        consumer = JPG_TO_H264_Consumer(output_queue,encode_queue, frame_queues)
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": input_queue,
+                "output_queue": output_queue,
+            }
+            infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            infer_process.start()
+            consumer_task = asyncio.create_task(consumer.handler())
+
+        encode_task  = asyncio.create_task(consumer.encode())
+
     if INCOMING_FORMAT.value == 'JPG' and OUTGOING_FORMAT.value == 'JPG': 
         await handle_jpg_to_jpg()
+    elif INCOMING_FORMAT.value == 'JPG' and OUTGOING_FORMAT.value == 'H264': 
+        await handle_jpg_to_h264()
 
 def inference(**kwargs):
     onnx = ObjectDetection(**kwargs)
@@ -99,10 +126,43 @@ async def cleanup_server():
         if input_queue is not None:
             input_queue.cleanup()
 
-    await asyncio.sleep(0.1)
+    async def cleanup_jpg_to_h264(): 
+        global infer_process, transport, consumer_task, input_queue, output_queue, encode_task
+
+        if transport is not None:
+            transport.close()
+
+        if infer_process is not None:
+            infer_process.kill()
+            infer_process.join()
+
+        if output_queue is not None:
+            output_queue.stop() # Signal consumer to stop
+            if consumer_task is not None:
+                print("Shutting down consumer_task...")
+                consumer_task.cancel()
+                try:
+                    await consumer_task
+                except asyncio.CancelledError:
+                    print("Encode task was cancelled cleanly.")
+            output_queue.cleanup()
+
+        if input_queue is not None:
+            input_queue.cleanup()
+
+        if encode_task is not None:
+            print("Shutting down decode task...")
+            encode_task.cancel()
+            try:
+                await encode_task
+            except asyncio.CancelledError:
+                print("Encode task was cancelled cleanly.")
+
+    await asyncio.sleep(0.2)
     if INCOMING_FORMAT.value == 'JPG' and OUTGOING_FORMAT.value == 'JPG': 
         await cleanup_jpg_to_jpg()
-
+    if INCOMING_FORMAT.value == 'JPG' and OUTGOING_FORMAT.value == 'H264': 
+        await cleanup_jpg_to_h264()
 
 
 ''' 

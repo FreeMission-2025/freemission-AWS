@@ -34,5 +34,5 @@ class Format(Enum):
     H264 = "H264"
 
 INCOMING_FORMAT  = Format.JPG  # Valid: JPG or H264
-OUTGOING_FORMAT  = Format.JPG  # Valid: JPG or H264
-INFERENCE_ENABLED = bool(True)
+OUTGOING_FORMAT  = Format.H264  # Valid: JPG or H264
+INFERENCE_ENABLED = bool(False)
