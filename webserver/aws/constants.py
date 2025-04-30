@@ -4,6 +4,7 @@ from multiprocessing import Process
 from typing import List, Optional
 from asyncio import DatagramTransport, Queue, Task
 from inference import ShmQueue
+from utils.logger import Log
 
 frame_queues: List[Queue] = []
 """List of asyncio frame queues, one for each connected client on video_stream endpoint"""
@@ -28,7 +29,7 @@ class ServerContext:
                 self.transport.close()
                 self.transport = None
         except Exception as e:
-            print(f"Error at cleanup transport: {e}")
+            Log.exception(f"Error at cleanup transport: {e}")
 
         try:
             if self.infer_process:
@@ -36,7 +37,7 @@ class ServerContext:
                 self.infer_process.join()
                 self.infer_process = None
         except Exception as e:
-            print(f"Error at cleanup infer_process: {e}")
+            Log.exception(f"Error at cleanup infer_process: {e}")
 
         try:
             if self.consumer_task:
@@ -50,7 +51,7 @@ class ServerContext:
                     pass
                 self.consumer_task = None
         except Exception as e:
-            print(f"Error at cleanup consumer_task: {e}")
+            Log.exception(f"Error at cleanup consumer_task: {e}")
 
         try:
             if self.encode_task:
@@ -61,7 +62,7 @@ class ServerContext:
                     pass
                 self.encode_task = None
         except Exception as e:
-            print(f"Error at cleanup encode_task: {e}")
+            Log.exception(f"Error at cleanup encode_task: {e}")
 
         try:
             if self.decode_task:
@@ -72,7 +73,7 @@ class ServerContext:
                     pass
                 self.decode_task = None
         except Exception as e:
-            print(f"Error at cleanup decode_task: {e}")
+            Log.exception(f"Error at cleanup decode_task: {e}")
 
         try:
             if self.output_queue:
@@ -80,7 +81,7 @@ class ServerContext:
                 self.output_queue.cleanup()
                 self.output_queue = None
         except Exception as e:
-            print(f"Error at cleanup output_queue: {e}")        
+            Log.exception(f"Error at cleanup output_queue: {e}")        
 
         try:
             if self.input_queue:
@@ -88,7 +89,7 @@ class ServerContext:
                 self.input_queue.cleanup()
                 self.input_queue = None
         except Exception as e:
-            print(f"Error at cleanup input_queue: {e}")        
+            Log.exception(f"Error at cleanup input_queue: {e}")        
 
 # Config
 class EC2Port(Enum):

@@ -6,6 +6,7 @@ import os
 from typing import List
 from inference import ShmQueue
 from .base import BaseConsumer
+from utils.logger import Log
 
 # Import ffmpeg
 ffmpeg_bin = r"C:\ffmpeg\bin"
@@ -79,7 +80,7 @@ class JPG_TO_H264_Consumer(BaseConsumer):
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"error at encode: {e}")
+                Log.exception(f"error at encode: {e}")
 
 
 

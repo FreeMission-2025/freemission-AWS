@@ -2,6 +2,7 @@ import asyncio
 import numpy as np
 from typing import List
 from inference import ShmQueue, QueueStoppedError
+from utils.logger import Log
 
 class BaseConsumer:
     def __init__(self, output_queue: ShmQueue):
@@ -25,7 +26,7 @@ class BaseConsumer:
             except QueueStoppedError:
                 break
             except Exception as e:
-                print(f"Error in handler: {e}")
+                Log.exception(f"Error in handler: {e}")
     
     async def process_handler(self, np_array: np.ndarray):
         """Process frame logic to be overridden by subclasses"""

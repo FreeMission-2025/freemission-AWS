@@ -8,7 +8,7 @@ from blacksheep.server.compression import GzipMiddleware
 from blacksheep.server.sse import ServerSentEvent
 from blacksheep.contents import HTMLContent
 import os
-import multiprocessing
+from utils.logger import Log
 
 app = Application(show_error_details=True)
 app.use_cors(
@@ -25,71 +25,12 @@ def home():
 '''
     Receive Video From Raspberry PI
 '''
-from constants import  EC2Port, INCOMING_FORMAT, OUTGOING_FORMAT, INFERENCE_ENABLED 
-from constants import frame_queues, decode_queue, encode_queue, ServerContext
-from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL 
-from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer
-from inference import ShmQueue, ObjectDetection
-
-ctx = ServerContext()
+from constants import INCOMING_FORMAT, OUTGOING_FORMAT 
+from constants import frame_queues
+from handler import handle_jpg_to_jpg, handle_jpg_to_h264, ctx
 
 @app.after_start
-async def after_start_server():
-    current_file = os.path.abspath(__file__)
-    current_dir = os.path.dirname(current_file) 
-    model_path = os.path.join(current_dir, "model", "v11_s_a.onnx")
-
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file not found at: {model_path}")
-    
-    async def handle_jpg_to_jpg(): 
-        ctx.input_queue  = ShmQueue(shape=(720,1280,3), capacity=120)
-        ctx.output_queue = ShmQueue(shape=(720,1280,3), capacity=120)
-
-        loop = asyncio.get_event_loop()
-        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
-        ctx.transport, protocol = await loop.create_datagram_endpoint(
-            lambda: JPG_TO_JPG_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
-        )
-        print(f"UDP listener (JPG to JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
-        
-        if INFERENCE_ENABLED:
-            kwargs = {
-                "model_path": model_path,
-                "input_queue": ctx.input_queue,
-                "output_queue": ctx.output_queue,
-            }
-            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
-            ctx.infer_process.start()
-
-            consumer = JPG_TO_JPG_Consumer(ctx.output_queue, frame_queues)
-            ctx.consumer_task = asyncio.create_task(consumer.handler())
-
-    async def handle_jpg_to_h264(): 
-        ctx.input_queue  = ShmQueue(shape=(720,1280,3), capacity=120)
-        ctx.output_queue = ShmQueue(shape=(720,1280,3), capacity=120)
-
-        loop = asyncio.get_event_loop()
-        protocol_input = ctx.input_queue if INFERENCE_ENABLED else encode_queue
-        ctx.transport, protocol = await loop.create_datagram_endpoint(
-            lambda: JPG_TO_H264_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_H264.value)
-        )
-        print(f"UDP listener (JPG to h264) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_H264.value}")
-        
-
-        consumer = JPG_TO_H264_Consumer(ctx.output_queue,frame_queues,encode_queue)
-        if INFERENCE_ENABLED:
-            kwargs = {
-                "model_path": model_path,
-                "input_queue": ctx.input_queue,
-                "output_queue": ctx.output_queue,
-            }
-            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
-            ctx.infer_process.start()
-            ctx.consumer_task = asyncio.create_task(consumer.handler())
-
-        ctx.encode_task  = asyncio.create_task(consumer.encode())
-
+async def start():
     handlers = {
         ('JPG', 'JPG'): handle_jpg_to_jpg,
         ('JPG', 'H264'): handle_jpg_to_h264,
@@ -101,15 +42,10 @@ async def after_start_server():
     else:
         raise NotImplementedError("Unsupported format combination")
 
-def inference(**kwargs):
-    onnx = ObjectDetection(**kwargs)
-    onnx.run()
-    
 @app.on_stop
 async def cleanup_server():
     await asyncio.sleep(0.2)
     await ctx.cleanup()
-
 
 ''' 
 # listen for UDP packets from raspi (JPG TO H264)
@@ -190,7 +126,7 @@ async def h264_stream(request: Request) -> AsyncIterable[ServerSentEvent]:
     try:
         while True:
             if await request.is_disconnected():
-                print("The request is disconnected!")
+                Log.info("The request is disconnected!")
                 break
             try:
                 timestamp, frame_bytes = await frame_queue.get()
@@ -198,7 +134,7 @@ async def h264_stream(request: Request) -> AsyncIterable[ServerSentEvent]:
                 encoded_frame = base64.b64encode(frame_bytes).decode('utf-8')
 
                 if age > 0.2:
-                    print(f"Skipped old frame ({age:.3f}s old)")
+                    Log.warning(f"Skipped old frame ({age:.3f}s old)")
                     continue
                 yield ServerSentEvent({"message": encoded_frame})
 
@@ -208,7 +144,7 @@ async def h264_stream(request: Request) -> AsyncIterable[ServerSentEvent]:
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"Error in frame generator: {e}")
+                Log.exception(f"Error in frame generator: {e}")
     finally:
         if frame_queue in frame_queues:
             frame_queues.remove(frame_queue)
@@ -226,14 +162,14 @@ async def jpg_stream(request: Request):
         try:
             while True:
                 if await request.is_disconnected():
-                    print("The request is disconnected!")
+                    Log.info("The request is disconnected!")
                     break
 
                 try:
                     timestamp, frame_bytes = await frame_queue.get()
                     age = time.time() - timestamp
                     if age > 0.2:
-                        print(f"Skipped old frame ({age:.3f}s old)")
+                        Log.warning(f"Skipped old frame ({age:.3f}s old)")
                         continue
                     
                     yield (
@@ -246,7 +182,7 @@ async def jpg_stream(request: Request):
                 except KeyboardInterrupt:
                     break
                 except Exception as e:
-                    print(f"Error in frame generator: {e}")
+                    Log.exception(f"Error in frame generator: {e}")
         finally:
             if frame_queue in frame_queues:
                 frame_queues.remove(frame_queue)
@@ -273,7 +209,7 @@ async def echo(websocket: WebSocket):
         while True:
             msg = await websocket.receive_text()
             if msg == 'READY':
-                print("READY TO RECEIVE")
+                Log.info("READY TO RECEIVE")
                 break
             await asyncio.sleep(0.02)
         while True:
@@ -282,7 +218,7 @@ async def echo(websocket: WebSocket):
                 age = time.time() - timestamp
 
                 if age > 0.2:
-                    print(f"Skipped old frame ({age:.3f}s old)")
+                    Log.warning(f"Skipped old frame ({age:.3f}s old)")
                     continue
 
                 await websocket.send_bytes(frame_bytes)
@@ -292,7 +228,7 @@ async def echo(websocket: WebSocket):
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"Error in frame generator: {e}")
+                Log.exception(f"Error in frame generator: {e}")
     except WebSocketDisconnectError:
         return
     finally:

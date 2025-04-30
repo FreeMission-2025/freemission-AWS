@@ -3,6 +3,7 @@ import numpy as np
 import onnxruntime
 import os
 from inference import ShmQueue
+from utils.logger import Log
 
 class ObjectDetection:
     """
@@ -134,4 +135,4 @@ class ObjectDetection:
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"error at inference: {e}")
+                Log.exception(f"error at inference: {e}")
