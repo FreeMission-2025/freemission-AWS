@@ -28,7 +28,7 @@ class DecodeVideo():
                 if not self.decode_queue.empty():
                     encoded_packet_bytes = await self.decode_queue.get()
                 else:
-                    await asyncio.sleep(0.005)
+                    await asyncio.sleep(0.003)
                     continue
 
                 packet = av.packet.Packet(encoded_packet_bytes)

@@ -5,3 +5,5 @@ MarkupSafe
 opencv-python
 av
 hypercorn[h3]
+onnxruntime-gpu
+onnx

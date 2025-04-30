@@ -1,29 +1,73 @@
 import asyncio
 import struct
 import time
-from typing import Any, List
+from typing import Any, List, Optional
 
 import cv2
 import numpy as np
 from zlib import crc32
 import os
+from typing import cast
+
+from inference import ShmQueue, QueueStoppedError
 
 # Import ffmpeg
 ffmpeg_bin = r"C:\ffmpeg\bin"
 os.add_dll_directory(ffmpeg_bin)
 import av
 
+class JPG_TO_JPG_Consumer():
+    def __init__(self, output_queue: ShmQueue, frame_queue: List[asyncio.Queue] ):
+        self.output_queue = output_queue
+        self.frame_queue = frame_queue
+    
+    async def handler(self):
+        loop = asyncio.get_running_loop()
+        while True:
+            try:
+                np_array = await loop.run_in_executor(None, self.output_queue.get)
+
+                if np_array is None:
+                    continue
+
+                _, buffer = cv2.imencode(".jpg", np_array)
+                frame_bytes = buffer.tobytes()
+
+                timestamped_frame = (time.time(), frame_bytes)
+                for q in self.frame_queue:
+                    if not q.full():
+                        q.put_nowait(timestamped_frame)
+
+            except asyncio.CancelledError:
+                break
+            except KeyboardInterrupt:
+                break
+            except QueueStoppedError:
+                break
+            except Exception as e:
+                print(f"error at handler: {e}")
+    
+
 class JPG_TO_JPG_PROTOCOL(asyncio.DatagramProtocol):
     ''' Base Class for Non Blocking UDP communication from Raspberry PI to AWS EC2 Server'''
 
-    def __init__(self, frame_queue: List[asyncio.Queue] ):
+    def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], inference_enabled = True ):
+        self.inference_enabled = inference_enabled
         self.transport = None
-        self.frame_queue = frame_queue
         self.frames_in_progress = {}
+        self.loop = asyncio.get_event_loop()
 
-        # Wheter we allow partial frames to be processed with null bytes, then try to decode. 
-        # or straight up discard
-        self.ALLOW_PARTIAL = True
+        self.input_queue: Optional[ShmQueue] = None
+        self.frame_queues: Optional[list[asyncio.Queue]] = None
+
+        if inference_enabled:
+            assert isinstance(input_queue, ShmQueue), \
+                "When inference is enabled, input_queue must be a ShmQueue instance."
+            self.input_queue = input_queue
+        else:
+            assert isinstance(input_queue, list) and all(isinstance(q, asyncio.Queue) for q in input_queue), \
+                "When inference is disabled, input_queue must be a list of asyncio.Queue instances."
+            self.frame_queues = input_queue
 
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
@@ -69,14 +113,18 @@ class JPG_TO_JPG_PROTOCOL(asyncio.DatagramProtocol):
                 if frame is None:
                     print("Error: Failed to decode reassembled frame.")
                     return
+                
+                if self.inference_enabled:
+                    self.loop.run_in_executor(None, lambda: self.input_queue.put(frame))
+                else:
+                    _, buffer = cv2.imencode(".jpg", frame)
+                    frame_bytes = buffer.tobytes()
 
-                _, buffer = cv2.imencode(".jpg", frame)
-                frame_bytes = buffer.tobytes()
-
-                timestamped_frame = (time.time(), frame_bytes)
-                for q in self.frame_queue:
-                    if not q.full():
-                        q.put_nowait(timestamped_frame)
+                    timestamped_frame = (time.time(), frame_bytes)
+                    for q in self.frame_queues:
+                        if not q.full():
+                            q.put_nowait(timestamped_frame)
+        
         except asyncio.CancelledError:
             return
         except Exception as e:

@@ -8,6 +8,7 @@ from blacksheep.server.compression import GzipMiddleware
 from blacksheep.server.sse import ServerSentEvent
 from blacksheep.contents import HTMLContent
 import os
+import multiprocessing
 
 app = Application(show_error_details=True)
 app.use_cors(
@@ -24,20 +25,85 @@ def home():
 '''
     Receive Video From Raspberry PI
 '''
-from constants import frame_queues, decode_queue, decode_task, encode_queue, encode_task, EC2Port, INCOMING_FORMAT, OUTGOING_FORMAT
-from JPG_udp import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, EncodeVideo
+from constants import  EC2Port, INCOMING_FORMAT, OUTGOING_FORMAT, INFERENCE_ENABLED 
+from constants import frame_queues, decode_queue, decode_task, encode_queue, encode_task,consumer_task, input_queue, output_queue, infer_process, transport
+from JPG_udp import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, EncodeVideo, JPG_TO_JPG_Consumer
 from H264_udp import H264_TO_JPG_Protocol, DecodeVideo, H264_TO_H264_Protocol
+from inference import ShmQueue, ObjectDetection
 
-''' 
 # listen for UDP packets from raspi (JPG TO JPG)
 @app.after_start
-async def start_udp_server_jpg():
-    loop = asyncio.get_event_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: JPG_TO_JPG_PROTOCOL(frame_queues), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
-    )
-    print(f"UDP listener (JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
-'''
+async def after_start_server():
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file) 
+    model_path = os.path.join(current_dir, "model", "v11_s_a.onnx")
+
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at: {model_path}")
+    
+    async def handle_jpg_to_jpg(): 
+        global input_queue, output_queue, infer_process, transport, consumer_task
+        input_queue  = ShmQueue(shape=(720,1280,3), capacity=120)
+        output_queue = ShmQueue(shape=(720,1280,3), capacity=120)
+
+        loop = asyncio.get_event_loop()
+        protocol_input = input_queue if INFERENCE_ENABLED else frame_queues
+        transport, protocol = await loop.create_datagram_endpoint(
+            lambda: JPG_TO_JPG_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
+        )
+        print(f"UDP listener (JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
+        
+
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": input_queue,
+                "output_queue": output_queue,
+            }
+            infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            infer_process.start()
+
+            consumer = JPG_TO_JPG_Consumer(output_queue, frame_queues)
+            consumer_task = asyncio.create_task(consumer.handler())
+
+    if INCOMING_FORMAT.value == 'JPG' and OUTGOING_FORMAT.value == 'JPG': 
+        await handle_jpg_to_jpg()
+
+def inference(**kwargs):
+    onnx = ObjectDetection(**kwargs)
+    onnx.run()
+    
+@app.on_stop
+async def cleanup_server():
+    async def cleanup_jpg_to_jpg(): 
+        global infer_process, transport, consumer_task, input_queue, output_queue
+
+        if transport is not None:
+            transport.close()
+
+        if infer_process is not None:
+            infer_process.kill()
+            infer_process.join()
+
+        if output_queue is not None:
+            output_queue.stop() # Signal consumer to stop
+            if consumer_task is not None:
+                print("Shutting down consumer_task...")
+                consumer_task.cancel()
+                try:
+                    await consumer_task
+                except asyncio.CancelledError:
+                    print("Encode task was cancelled cleanly.")
+            output_queue.cleanup()
+        
+        if input_queue is not None:
+            input_queue.cleanup()
+
+    await asyncio.sleep(0.1)
+    if INCOMING_FORMAT.value == 'JPG' and OUTGOING_FORMAT.value == 'JPG': 
+        await cleanup_jpg_to_jpg()
+
+
 
 ''' 
 # listen for UDP packets from raspi (JPG TO H264)
@@ -95,6 +161,7 @@ async def shutdown_tasks():
             print("Decode task was cancelled cleanly.")
 '''
 
+''' 
 # listen for UDP packets from raspi (H264 TO H264)
 @app.after_start
 async def start_udp_server_video_h264():
@@ -103,6 +170,7 @@ async def start_udp_server_video_h264():
         lambda: H264_TO_H264_Protocol(frame_queue=frame_queues), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_H264.value)
     )
     print(f"UDP listener (Video H264) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_H264.value}")
+'''
 
 
 ''' 

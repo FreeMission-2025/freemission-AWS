@@ -6,6 +6,7 @@ __pycache__/
 # C extensions
 *.so
 
+
 # Distribution / packaging
 .Python
 build/
@@ -172,5 +173,5 @@ cython_debug/
 
 *.pem
 webserver/certificate/ssl.conf 
-
+webserver/aws/model/
 

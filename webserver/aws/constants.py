@@ -1,6 +1,8 @@
 from enum import Enum
+from multiprocessing import Process
 from typing import List
-from asyncio import Queue, Task
+from asyncio import DatagramTransport, Queue, Task
+from inference import ShmQueue
 
 frame_queues: List[Queue] = []
 """List of asyncio frame queues, one for each connected client on video_stream endpoint"""
@@ -10,6 +12,13 @@ decode_task: Task | None = None
 
 encode_queue: Queue = Queue()
 encode_task: Task | None = None 
+consumer_task: Task | None = None
+
+input_queue:  ShmQueue | None  = None
+output_queue: ShmQueue  | None = None
+infer_process: Process | None = None
+
+transport: DatagramTransport | None = None
 
 # Config
 class EC2Port(Enum):
@@ -26,3 +35,4 @@ class Format(Enum):
 
 INCOMING_FORMAT  = Format.JPG  # Valid: JPG or H264
 OUTGOING_FORMAT  = Format.JPG  # Valid: JPG or H264
+INFERENCE_ENABLED = bool(True)
