@@ -1,0 +1,32 @@
+import asyncio
+import numpy as np
+from typing import List
+from inference import ShmQueue, QueueStoppedError
+
+class BaseConsumer:
+    def __init__(self, output_queue: ShmQueue):
+        self.output_queue = output_queue
+    
+    async def handler(self):
+        loop = asyncio.get_running_loop()
+        while True:
+            try:
+                np_array = await loop.run_in_executor(None, self.output_queue.get)
+
+                if np_array is None:
+                    continue
+
+                await self.process_handler(np_array)
+
+            except asyncio.CancelledError:
+                break
+            except KeyboardInterrupt:
+                break
+            except QueueStoppedError:
+                break
+            except Exception as e:
+                print(f"Error in handler: {e}")
+    
+    async def process_handler(self, np_array: np.ndarray):
+        """Process frame logic to be overridden by subclasses"""
+        raise NotImplementedError("process_frame should be implemented by subclasses")
