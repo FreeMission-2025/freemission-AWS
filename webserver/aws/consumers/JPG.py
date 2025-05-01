@@ -38,7 +38,7 @@ class JPG_TO_H264_Consumer(BaseConsumer):
         if not self.encode_queue.full():
             self.encode_queue.put_nowait(np_array)
     
-    async def encode (self):
+    async def encode(self):
         encoder = av.CodecContext.create('libx264', 'w')
         encoder.width = 1280
         encoder.height = 720

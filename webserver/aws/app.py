@@ -48,18 +48,6 @@ async def start():
 async def cleanup_server():
     await asyncio.sleep(0.2)
     await ctx.cleanup()
-    
-''' 
-# listen for UDP packets from raspi (H264 TO H264)
-@app.after_start
-async def start_udp_server_video_h264():
-    loop = asyncio.get_event_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: H264_TO_H264_Protocol(frame_queue=frame_queues), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_H264.value)
-    )
-    print(f"UDP listener (Video H264) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_H264.value}")
-'''
-
 
 ''' 
     ServerSentEvents: Video Stream Endpoints (h264 codec)
