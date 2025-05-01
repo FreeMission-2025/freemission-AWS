@@ -19,7 +19,7 @@ class JPG_TO_JPG_Consumer(BaseConsumer):
         self.frame_queue = frame_queue
     
     async def process_handler(self, np_array: np.ndarray):
-        _, buffer = cv2.imencode(".jpg", np_array)
+        _, buffer = cv2.imencode(".jpg", np_array, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
         frame_bytes = buffer.tobytes()
 
         timestamped_frame = (time.time(), frame_bytes)
@@ -46,16 +46,11 @@ class JPG_TO_H264_Consumer(BaseConsumer):
         encoder.bit_rate = 3000000  
         encoder.framerate = 30 
         encoder.options = {'tune': 'zerolatency'} 
-        loop = asyncio.get_running_loop()
 
         while True:
             try:
-                if not self.encode_queue.empty():
-                    frame = await self.encode_queue.get()
-                else:
-                    await asyncio.sleep(0)
-                    continue
-                
+                frame = await self.encode_queue.get()
+
                 if not isinstance(frame, cv2.typing.MatLike):
                     frame = np.frombuffer(frame, dtype=np.uint8)
                     frame_bgr = cv2.imdecode(frame, cv2.IMREAD_COLOR)
@@ -66,7 +61,7 @@ class JPG_TO_H264_Consumer(BaseConsumer):
 
                 img_yuv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YUV_I420)
                 video_frame = av.VideoFrame.from_ndarray(img_yuv, format='yuv420p')
-                encoded_packet = await loop.run_in_executor(None, lambda: encoder.encode(video_frame))
+                encoded_packet = await self.loop.run_in_executor(None, lambda: encoder.encode(video_frame))
 
                 if len(encoded_packet) == 0:
                     continue
@@ -75,6 +70,7 @@ class JPG_TO_H264_Consumer(BaseConsumer):
                 for q in self.frame_queue:
                     if not q.full():
                         q.put_nowait(timestamped_frame)
+                await asyncio.sleep(0)
             except asyncio.CancelledError:
                 break
             except KeyboardInterrupt:

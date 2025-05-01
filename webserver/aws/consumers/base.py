@@ -7,12 +7,12 @@ from utils.logger import Log
 class BaseConsumer:
     def __init__(self, output_queue: ShmQueue):
         self.output_queue = output_queue
-    
+        self.loop = asyncio.get_event_loop()
+
     async def handler(self):
-        loop = asyncio.get_running_loop()
         while True:
             try:
-                np_array = await loop.run_in_executor(None, self.output_queue.get)
+                np_array = await self.loop.run_in_executor(None, self.output_queue.get)
 
                 if np_array is None:
                     continue

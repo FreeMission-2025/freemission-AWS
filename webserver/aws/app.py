@@ -27,13 +27,15 @@ def home():
 '''
 from constants import INCOMING_FORMAT, OUTGOING_FORMAT 
 from constants import frame_queues
-from handler import handle_jpg_to_jpg, handle_jpg_to_h264, ctx
+from handler import handle_jpg_to_jpg, handle_jpg_to_h264, handle_h264_to_jpg, handle_h264_to_h264, ctx
 
 @app.after_start
 async def start():
     handlers = {
         ('JPG', 'JPG'): handle_jpg_to_jpg,
         ('JPG', 'H264'): handle_jpg_to_h264,
+        ('H264', 'JPG'): handle_h264_to_jpg,
+        ('H264', 'H264'): handle_h264_to_h264,
     }
 
     handler = handlers.get((INCOMING_FORMAT.value, OUTGOING_FORMAT.value))
@@ -46,63 +48,7 @@ async def start():
 async def cleanup_server():
     await asyncio.sleep(0.2)
     await ctx.cleanup()
-
-''' 
-# listen for UDP packets from raspi (JPG TO H264)
-@app.after_start
-async def start_udp_server_jpg_h264():
-    loop = asyncio.get_event_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: JPG_TO_H264_PROTOCOL(encode_queue), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
-    )
-    print(f"UDP listener (JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
-
-@app.after_start
-async def create_encode_task():
-    global encode_task
-    video_decoder = EncodeVideo(encode_queue, frame_queues)
-    encode_task = asyncio.create_task(video_decoder.encode())
-
-@app.on_stop
-async def shutdown_tasks():
-    global encode_task
-    if encode_task is not None:
-        print("Shutting down decode task...")
-        encode_task.cancel()
-        try:
-            await encode_task
-        except asyncio.CancelledError:
-            print("Encode task was cancelled cleanly.")
-'''
-
-''' 
-# listen for UDP packets from raspi (H264 TO JPG)
-@app.after_start
-async def start_udp_server_video():
-    loop = asyncio.get_event_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: H264_TO_JPG_Protocol(decode_queue), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_JPG.value)
-    )
-    print(f"UDP listener (Video JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_JPG.value}")
-
-@app.after_start
-async def create_decode_task():
-    global decode_task
-    video_decoder = DecodeVideo(decode_queue, frame_queues)
-    decode_task = asyncio.create_task(video_decoder.decode())
-
-@app.on_stop
-async def shutdown_tasks():
-    global decode_task
-    if decode_task is not None:
-        print("Shutting down decode task...")
-        decode_task.cancel()
-        try:
-            await decode_task
-        except asyncio.CancelledError:
-            print("Decode task was cancelled cleanly.")
-'''
-
+    
 ''' 
 # listen for UDP packets from raspi (H264 TO H264)
 @app.after_start

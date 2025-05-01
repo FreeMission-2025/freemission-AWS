@@ -4,8 +4,8 @@ import multiprocessing
 import os
 
 from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, EC2Port
-from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL 
-from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer
+from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL
+from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer, H264_TO_JPG_Consumer
 from inference import ShmQueue, ObjectDetection
 
 current_file = os.path.abspath(__file__)
@@ -64,3 +64,29 @@ async def handle_jpg_to_h264():
         ctx.consumer_task = asyncio.create_task(consumer.handler())
 
     ctx.encode_task  = asyncio.create_task(consumer.encode())
+
+async def handle_h264_to_jpg():
+    loop = asyncio.get_event_loop()
+    protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+
+    ctx.transport, protocol = await loop.create_datagram_endpoint(
+        lambda: H264_TO_JPG_PROTOCOL(protocol_input, decode_queue, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_JPG.value)
+    )
+    print(f"UDP listener (Video JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_JPG.value}")
+
+    if INFERENCE_ENABLED:
+        kwargs = {
+            "model_path": model_path,
+            "input_queue": ctx.input_queue,
+            "output_queue": ctx.output_queue,
+        }
+        ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+        ctx.infer_process.start()
+
+        consumer = H264_TO_JPG_Consumer(ctx.output_queue, frame_queues)
+        ctx.consumer_task = asyncio.create_task(consumer.handler())
+    
+    ctx.decode_task = asyncio.create_task(protocol.decode())
+
+async def handle_h264_to_h264():
+    raise NotImplementedError("Not Implemented")
