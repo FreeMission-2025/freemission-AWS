@@ -26,8 +26,9 @@ def home():
     Receive Video From Raspberry PI
 '''
 from constants import INCOMING_FORMAT, OUTGOING_FORMAT 
-from constants import frame_queues
+from constants import frame_queues, INFERENCE_ENABLED
 from handler import handle_jpg_to_jpg, handle_jpg_to_h264, handle_h264_to_jpg, handle_h264_to_h264, ctx
+from inference import get_onnx_status
 
 @app.after_start
 async def start():
@@ -37,6 +38,9 @@ async def start():
         ('H264', 'JPG'): handle_h264_to_jpg,
         ('H264', 'H264'): handle_h264_to_h264,
     }
+
+    assert get_onnx_status() or not INFERENCE_ENABLED, "Please install onnxruntime package if inference is enabled!"
+
 
     handler = handlers.get((INCOMING_FORMAT.value, OUTGOING_FORMAT.value))
     if handler:

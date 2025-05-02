@@ -1,9 +1,18 @@
 import cv2
 import numpy as np
-import onnxruntime
 import os
 from inference import ShmQueue
 from utils.logger import Log
+
+isOnnxInstalled = False
+try:
+    import onnxruntime
+    isOnnxInstalled = True
+except ImportError:
+    print("__inference:12 : onnxruntime package not installed")
+
+def get_onnx_status():
+    return isOnnxInstalled
 
 class ObjectDetection:
     """
@@ -17,6 +26,9 @@ class ObjectDetection:
     :param class_names: List of class names
     """
     def __init__(self, model_path: str, input_queue: ShmQueue, output_queue: ShmQueue, input_size=(640, 640), conf_threshold=0.25, class_names=None):
+        if not isOnnxInstalled:
+            raise RuntimeError("Onnxruntime Is Not Installed")
+        
         # Load cuda and cudnn dlls
         cuda_path = os.path.join(os.environ.get("CUDA_PATH", ""), "bin")
         if cuda_path:

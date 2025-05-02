@@ -107,4 +107,4 @@ class Format(Enum):
 FFMPEG_DIR       = r"C:\ffmpeg\bin"
 INCOMING_FORMAT  = Format.H264  # Valid: JPG or H264
 OUTGOING_FORMAT  = Format.H264  # Valid: JPG or H264
-INFERENCE_ENABLED = bool(False)
+INFERENCE_ENABLED = bool(True)
