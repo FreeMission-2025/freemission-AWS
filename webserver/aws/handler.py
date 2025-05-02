@@ -6,7 +6,13 @@ import os
 from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, EC2Port
 from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL
 from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer, H264_TO_JPG_Consumer, H264_TO_H264_Consumer
-from inference import ShmQueue, ObjectDetection
+from inference import ShmQueue
+
+if INFERENCE_ENABLED:
+    try:
+        from inference import ObjectDetection
+    except ImportError:
+        raise ValueError("onnxruntime must be installed if running inference")
 
 current_file = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_file) 

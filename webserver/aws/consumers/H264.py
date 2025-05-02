@@ -7,10 +7,11 @@ from typing import List
 from inference import ShmQueue
 from .base import BaseConsumer
 from utils.logger import Log
+from constants import FFMPEG_DIR
 
 # Import ffmpeg
-ffmpeg_bin = r"C:\ffmpeg\bin"
-os.add_dll_directory(ffmpeg_bin)
+if os.path.exists(FFMPEG_DIR):
+    os.add_dll_directory(FFMPEG_DIR)
 import av
 
 class H264_TO_JPG_Consumer(BaseConsumer):

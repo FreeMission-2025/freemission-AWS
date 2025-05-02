@@ -1,6 +1,5 @@
 import asyncio
 import os
-import av.packet
 import cv2
 import time
 from typing import List, Optional
@@ -8,10 +7,11 @@ import numpy as np
 from .base import BaseProtocol
 from inference import ShmQueue
 from utils.logger import Log
+from constants import FFMPEG_DIR
 
 # Import ffmpeg
-ffmpeg_bin = r"C:\ffmpeg\bin"
-os.add_dll_directory(ffmpeg_bin)
+if os.path.exists(FFMPEG_DIR):
+    os.add_dll_directory(FFMPEG_DIR)
 import av
 from av.packet import Packet
 

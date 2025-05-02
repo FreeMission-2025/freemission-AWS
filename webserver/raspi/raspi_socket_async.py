@@ -71,17 +71,22 @@ class VideoStream:
         loop = asyncio.get_running_loop()
 
         while self.running:
-            ret, frame = await loop.run_in_executor(None, self.cap.read)
-            if not ret:
-                await asyncio.sleep(0.5)
-                continue
+            try:
+                ret, frame = await loop.run_in_executor(None, self.cap.read)
+                if not ret:
+                    await asyncio.sleep(0.5)
+                    continue
 
-            #frame = cv2.resize(frame, (self.desired_width, int(frame.shape[0] * self.desired_width / frame.shape[1])))
-            if self.frame_queue.full():
-                print("queue full, skipping frame")
+                #frame = cv2.resize(frame, (self.desired_width, int(frame.shape[0] * self.desired_width / frame.shape[1])))
+                if self.frame_queue.full():
+                    print("queue full, skipping frame")
 
-            await self.frame_queue.put(frame)
-            await asyncio.sleep(0)
+                await self.frame_queue.put(frame)
+                await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"error at video_stream: {e}")
             
     def stop(self):
         self.stopped = True
@@ -122,23 +127,26 @@ async def main():
 
     try:
         while True:
-            frame = await frame_queue.get()
-            if frame is None:
-                continue
+            try:
+                frame = await frame_queue.get()
+                if frame is None:
+                    continue
 
-            _, encoded_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-            encoded_frame = encoded_frame.tobytes()
+                _, encoded_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                encoded_frame = encoded_frame.tobytes()
 
-            await send_frame(protocol, encoded_frame, (EC2_UDP_IP, EC2_UDP_PORT))
-   
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        print(f"Error eccoured at main: {e}")
+                await send_frame(protocol, encoded_frame, (EC2_UDP_IP, EC2_UDP_PORT))
+            except asyncio.CancelledError:
+                break
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"error at main:142 : {e}")
     finally:
-        vs.stop()
-        cv2.destroyAllWindows()
         capture_task.cancel()
+        vs.stop()
+        transport.close()
+        cv2.destroyAllWindows()
         try:
             with contextlib.suppress(asyncio.CancelledError):
                 await capture_task
@@ -147,5 +155,7 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
-    
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Program interrupted by user. Exiting...")    

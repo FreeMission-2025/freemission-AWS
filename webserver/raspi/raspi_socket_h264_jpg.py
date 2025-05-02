@@ -1,3 +1,4 @@
+from multiprocessing import shared_memory
 import platform
 import os
 system = platform.system()
@@ -19,7 +20,8 @@ install_loop()
 
 # Add the directory containing FFmpeg DLLs
 ffmpeg_bin = r"C:\ffmpeg\bin"
-os.add_dll_directory(ffmpeg_bin)
+if system == 'Windows' and os.path.exists(ffmpeg_bin):
+    os.add_dll_directory(ffmpeg_bin)
 
 import struct
 import asyncio
@@ -27,7 +29,7 @@ import cv2
 import contextlib
 from zlib import crc32
 import multiprocessing
-
+import signal
 ''' 
     UDP Configuration
 '''
@@ -35,6 +37,19 @@ EC2_UDP_IP = "127.0.0.1"
 EC2_UDP_PORT = 8086
 MAX_UDP_PACKET_SIZE = 60000  # Max safe UDP payload size
 CAMERA_INDEX = 0             # Default camera index
+
+''' Global Variable '''
+frame_id_counter = 0
+
+# Shutdown event
+shutdown_event = asyncio.Event()
+
+def handle_exit_signal(signum, frame):
+    print(f"\nReceived signal {signum}, shutting down...")
+    shutdown_event.set()
+
+signal.signal(signal.SIGINT, handle_exit_signal)
+signal.signal(signal.SIGTERM, handle_exit_signal)
 
 class UDPSender(asyncio.DatagramProtocol):
     def __init__(self):
@@ -56,8 +71,6 @@ class UDPSender(asyncio.DatagramProtocol):
     def connection_lost(self, exc):
         print("Connection closed")
 
-''' Global Variable '''
-frame_id_counter = 0
 
 class VideoStream:
     def __init__(self, frame_queue:multiprocessing.Queue, src=0, desired_width=680,):
@@ -93,14 +106,16 @@ class VideoStream:
                     print("full")
 
                 await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                break
             except Exception as e:
-                print("videostream start error: {e}")
-            
+                print(f"VideoStream start error: {e}")
+
     def stop(self):
         self.stopped = True
         self.cap.release()
 
-async def encode_video(frame_queue: multiprocessing.Queue, encode_queue: multiprocessing.Queue):
+async def encode_video(frame_queue: multiprocessing.Queue, encode_queue: multiprocessing.Queue, shm_name: str):
     install_loop()
     loop = asyncio.get_running_loop()
 
@@ -112,9 +127,10 @@ async def encode_video(frame_queue: multiprocessing.Queue, encode_queue: multipr
     encoder.bit_rate = 3000000  
     encoder.framerate = 30 
     encoder.options = {'tune': 'zerolatency'} 
+    shm = shared_memory.SharedMemory(name=shm_name)
 
-    try:
-        while True:
+    while shm.buf[0] == 0:
+        try:
             if not frame_queue.empty():
                 frame = frame_queue.get()
             else:
@@ -133,8 +149,8 @@ async def encode_video(frame_queue: multiprocessing.Queue, encode_queue: multipr
                 encode_queue.put_nowait(encoded_packet_bytes)
             else:
                 print("full")
-    except Exception as e:
-        print(f"error: {e}")
+        except Exception as e:
+            print(f"error: {e}")
 
         
 async def send_frame(protocol: UDPSender, encoded_frame: bytes, addr: tuple[str, int]):
@@ -157,8 +173,8 @@ async def send_frame(protocol: UDPSender, encoded_frame: bytes, addr: tuple[str,
 
         protocol.send(header + chunk, addr)
         
-def async_encode(frame_queue: multiprocessing.Queue, encode_queue: multiprocessing.Queue):
-    asyncio.run(encode_video(frame_queue,encode_queue))
+def async_encode(frame_queue: multiprocessing.Queue, encode_queue: multiprocessing.Queue, shm_name: str):
+    asyncio.run(encode_video(frame_queue, encode_queue, shm_name))
 
 async def main():
     frame_queue  = multiprocessing.Queue(60)
@@ -166,7 +182,9 @@ async def main():
     vs = VideoStream(frame_queue)
     capture_task = asyncio.create_task(vs.start())
 
-    encode_process = multiprocessing.Process(target=async_encode, args=(frame_queue,encode_queue))
+    shm = shared_memory.SharedMemory(create=True, size=1)
+    shm.buf[0] = 0  # 0 means running
+    encode_process = multiprocessing.Process(target=async_encode, args=(frame_queue,encode_queue, shm.name))
     encode_process.start()
 
     loop = asyncio.get_running_loop()
@@ -178,7 +196,7 @@ async def main():
     )
 
     try:
-        while True:
+        while not shutdown_event.is_set():
             if not encode_queue.empty():
                 encoded_frame = await loop.run_in_executor(None, encode_queue.get)
                 await send_frame(protocol, encoded_frame, (EC2_UDP_IP, EC2_UDP_PORT))
@@ -189,11 +207,19 @@ async def main():
     except KeyboardInterrupt:
         pass
     finally:
+        capture_task.cancel()
         vs.stop()
-        capture_task.cancel()
-        encode_process.terminate()
-        encode_process.join()
-        capture_task.cancel()
+
+        shm.buf[0] = 1
+        frame_queue.put(1)
+        encode_process.join(timeout=5)
+        if encode_process.is_alive():
+            print("Force terminating encoder process")
+            encode_process.terminate()
+            encode_process.join()
+
+        shm.close()
+        shm.unlink()
         try:
             with contextlib.suppress(asyncio.CancelledError):
                 await capture_task
@@ -201,5 +227,8 @@ async def main():
             print(f"Error occurred while canceling stream task: {e}")
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Program interrupted by user. Exiting...")
     
