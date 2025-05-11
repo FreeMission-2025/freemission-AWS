@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import os
-from inference import ShmQueue
+from .shm_queue import ShmQueue
 from utils.logger import Log
 
 isOnnxInstalled = False

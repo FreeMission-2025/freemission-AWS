@@ -29,7 +29,7 @@
     });
 
     // Open SSE connection
-    const eventSource = new EventSource('http://127.0.0.1:80/h264_stream');
+    const eventSource = new EventSource('{{scheme}}://{{ip}}:{{port}}/h264_stream');
 
     eventSource.onmessage = async (event) => {
         try {

@@ -7,7 +7,7 @@
 </head>
 <body>
     <script>
-        const ws = new WebSocket('ws://localhost:80/ws_h264_stream');
+        const ws = new WebSocket('{{scheme}}://{{ip}}:{{port}}/ws_h264_stream');
         
         // Important: expect binary data
         ws.binaryType = "arraybuffer";

@@ -69,7 +69,7 @@ class H264_TO_JPG_PROTOCOL(BaseProtocol):
                 bgr_frame = cv2.cvtColor(decoded_frame, cv2.COLOR_YUV2BGR_I420)
 
                 await loop.run_in_executor(None, lambda: input_queue.put(bgr_frame))
-                await asyncio.sleep(0)
+                #await asyncio.sleep(0)
             except asyncio.CancelledError:
                 break
             except KeyboardInterrupt:
@@ -109,7 +109,7 @@ class H264_TO_JPG_PROTOCOL(BaseProtocol):
                     if not q.full():
                         q.put_nowait(timestamped_frame)
                 
-                await asyncio.sleep(0)
+                #await asyncio.sleep(0)
             except asyncio.CancelledError:
                 break
             except KeyboardInterrupt:

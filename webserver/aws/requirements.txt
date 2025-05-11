@@ -7,3 +7,4 @@ av
 hypercorn[h3]
 onnxruntime-gpu
 onnx
+Jinja2

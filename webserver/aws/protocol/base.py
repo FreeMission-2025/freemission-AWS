@@ -1,4 +1,5 @@
 import asyncio
+import socket
 import struct
 import time
 from zlib import crc32
@@ -16,6 +17,17 @@ class BaseProtocol(asyncio.DatagramProtocol):
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
         Log.info(f"UDP connection established")
+        sock: socket.socket = transport.get_extra_info('socket')
+
+        default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+        Log.info(f"Default SO_RCVBUF: {default_rcvbuf} bytes")
+
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32 * 1024 * 1024)
+
+        new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+        Log.info(f"new SO_RCVBUF: {new_rcvbuf} bytes")
+
+
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]):
         try:

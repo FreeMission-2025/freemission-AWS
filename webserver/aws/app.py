@@ -6,20 +6,32 @@ import time
 from blacksheep import Application, Request, Response, StreamedContent, get, WebSocket, WebSocketDisconnectError, ws
 from blacksheep.server.compression import GzipMiddleware
 from blacksheep.server.sse import ServerSentEvent
-from blacksheep.contents import HTMLContent
+from blacksheep.server.rendering.jinja2 import JinjaRenderer
+from blacksheep.settings.html import html_settings
+from blacksheep.server.responses import view_async
 import os
 from utils.logger import Log
+from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP
 
 app = Application(show_error_details=True)
+html_settings.use(JinjaRenderer(enable_async=True))
+
 app.use_cors(
     allow_methods="*",
     allow_origins="*",
     allow_headers="*",
 )
+
 app.middlewares.append(GzipMiddleware(min_size=100))
 
+# current_file = os.path.abspath(__file__)
+# current_dir = os.path.dirname(current_file)
+# static_path = os.path.join(current_dir, 'views')
+# app.serve_files(source_folder=static_path, discovery=True)
+
 @get("/")
-def home():
+def home(request: Request):
+    print(request.scope.items())
     return f"Hello, World! {datetime.now().isoformat()}"
 
 '''
@@ -52,6 +64,7 @@ async def start():
 async def cleanup_server():
     await asyncio.sleep(0.2)
     await ctx.cleanup()
+
 
 ''' 
     ServerSentEvents: Video Stream Endpoints (h264 codec)
@@ -137,7 +150,7 @@ async def jpg_stream(request: Request):
     Websockets: Video Stream Endpoints (H264)
 '''
 @ws("/ws_h264_stream")
-async def echo(websocket: WebSocket):
+async def ws_h264_stream(websocket: WebSocket):
     await websocket.accept()
 
     frame_queue = asyncio.Queue()
@@ -174,52 +187,43 @@ async def echo(websocket: WebSocket):
             frame_queues.remove(frame_queue)
 
 '''
-    Static HTML
+    HTML Content
 '''
-@get("/sse.html")
-async def serve_html(request: Request):
-    file_path = "webserver/aws/static/sse.html"
-    
-    # Check if the file exists
-    if os.path.exists(file_path):
-        with open(file_path, "r") as file:
-            html_content = file.read()
-        
-        # Convert the string to bytes
-        
-        # Return the HTML content with correct Content-Type header
-        return Response(status=200, content=HTMLContent(html_content))
+@get("/sse")
+async def sse_html(request: Request):
+    scheme = request.scope.get('scheme')
+    http_ver = request.scope.get('http_version')
+    if http_ver == '1.1':
+        port = HTTP_PORT
+    elif http_ver == '2':
+        port = HTTPS_PORT
     else:
-        return Response("File not found", status=404)
-    
-@get("/h264.html")
-async def serve_html(request: Request):
-    file_path = "webserver/aws/static/h264.html"
-    
-    # Check if the file exists
-    if os.path.exists(file_path):
-        with open(file_path, "r") as file:
-            html_content = file.read()
-        
-        # Convert the string to bytes
-        
-        # Return the HTML content with correct Content-Type header
-        return Response(status=200, content=HTMLContent(html_content))
+        port = QUIC_PORT
+    return await view_async("sse.jinja", {"scheme": scheme, "port": port, "ip": PUBLIC_IP})
+
+@get("/h264")
+async def h264_ws_html(request: Request):
+    http_ver = request.scope.get('http_version')
+    if http_ver == '1.1':
+        port = HTTP_PORT
+        scheme = 'ws'
+    elif http_ver == '2':
+        port = HTTPS_PORT
+        scheme = 'wss'
     else:
-        return Response("File not found", status=404)
-    
-@get("/mjpeg.html")
-async def serve_html(request: Request):
-    file_path = "webserver/aws/static/mjpeg.html"
-    
-    # Check if the file exists
-    if os.path.exists(file_path):
-        with open(file_path, "r") as file:
-            html_content = file.read()
-        
-        # Convert the string to bytes
-        
-        # Return the HTML content with correct Content-Type header
-        return Response(status=200, content=HTMLContent(html_content))
+        port = QUIC_PORT
+        scheme = 'wss'
+    return await view_async("h264.jinja", {"scheme": scheme, "port": port, "ip": PUBLIC_IP})
+
+
+@get("/mjpeg")
+async def mjpeg_html(request: Request):
+    scheme = request.scope.get('scheme')
+    http_ver = request.scope.get('http_version')
+    if http_ver == '1.1':
+        port = HTTP_PORT
+    elif http_ver == '2':
+        port = HTTPS_PORT
     else:
-        return Response("File not found", status=404)
+        port = QUIC_PORT
+    return await view_async("mjpeg.jinja", {"scheme": scheme, "port": port, "ip": PUBLIC_IP})

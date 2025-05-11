@@ -5,6 +5,7 @@ from typing import List, Optional
 from asyncio import DatagramTransport, Queue, Task
 from inference import ShmQueue
 from utils.logger import Log
+from utils.public_ip import get_public_ip
 
 frame_queues: List[Queue] = []
 """List of asyncio frame queues, one for each connected client on video_stream endpoint"""
@@ -107,4 +108,9 @@ class Format(Enum):
 FFMPEG_DIR       = r"C:\ffmpeg\bin"
 INCOMING_FORMAT  = Format.H264  # Valid: JPG or H264
 OUTGOING_FORMAT  = Format.H264  # Valid: JPG or H264
-INFERENCE_ENABLED = bool(True)
+INFERENCE_ENABLED = bool(False)
+
+QUIC_PORT  = 4433  # quic
+HTTP_PORT  = 80    # http 1.1
+HTTPS_PORT = 8080  # http 2
+PUBLIC_IP  = '127.0.0.1'  # get_public_ip() or '127.0.0.1 '
