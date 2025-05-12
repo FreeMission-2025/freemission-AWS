@@ -3,6 +3,7 @@ import numpy as np
 import os
 from .shm_queue import ShmQueue
 from utils.logger import Log
+import platform
 
 isOnnxInstalled = False
 try:
@@ -30,9 +31,10 @@ class ObjectDetection:
             raise RuntimeError("Onnxruntime Is Not Installed")
         
         # Load cuda and cudnn dlls
-        cuda_path = os.path.join(os.environ.get("CUDA_PATH", ""), "bin")
-        if cuda_path:
-            onnxruntime.preload_dlls(cuda=True, cudnn=True, directory=cuda_path)
+        if platform.system() == 'Windows':
+            cuda_path = os.path.join(os.environ.get("CUDA_PATH", ""), "bin")
+            if cuda_path:
+                onnxruntime.preload_dlls(cuda=True, cudnn=True, directory=cuda_path)
 
         self.input_queue  = input_queue
         self.output_queue = output_queue

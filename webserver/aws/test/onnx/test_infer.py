@@ -6,14 +6,18 @@ import numpy as np
 import onnxruntime
 import time
 import os
-
+import platform
 # Load cuda and cudnn dlls. If not installed, import torch with CUDA support before import onnxruntime
-cuda_path = os.path.join(os.environ["CUDA_PATH"], "bin")
-onnxruntime.preload_dlls(cuda=True, cudnn=True, directory=cuda_path)
+
+if platform.system() == 'Windows':
+    cuda_path = os.path.join(os.environ["CUDA_PATH"], "bin")
+    if (os.path.exists(cuda_path)):
+        onnxruntime.preload_dlls(cuda=True, cudnn=True, directory=cuda_path)
+
 onnxruntime.print_debug_info()
 
 # Initialize the ONNX Runtime session
-model_path = './model/onnx/v11_s_a.onnx'
+model_path = '../../model/v11_s_a.onnx'
 sess_options = onnxruntime.SessionOptions()
 sess_options.log_severity_level = 1
 session = onnxruntime.InferenceSession(model_path, sess_options, providers=['CUDAExecutionProvider', 'CPUExecutionProvider']) #TensorrtExecutionProvider
