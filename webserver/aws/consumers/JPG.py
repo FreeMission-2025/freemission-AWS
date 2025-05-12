@@ -7,7 +7,7 @@ from typing import List
 from inference import ShmQueue
 from .base import BaseConsumer
 from utils.logger import Log
-from constants import FFMPEG_DIR
+from constants import FFMPEG_DIR, SHOW_FPS
 
 # Import ffmpeg
 if os.path.exists(FFMPEG_DIR):
@@ -18,7 +18,9 @@ class JPG_TO_JPG_Consumer(BaseConsumer):
     def __init__(self, output_queue: ShmQueue, frame_queue: List[asyncio.Queue]):
         super().__init__(output_queue)
         self.frame_queue = frame_queue
-    
+        self.frame_count = 0
+        self.prev_time = time.monotonic()
+
     async def process_handler(self, np_array: np.ndarray):
         _, buffer = cv2.imencode(".jpg", np_array, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
         frame_bytes = buffer.tobytes()
@@ -28,13 +30,25 @@ class JPG_TO_JPG_Consumer(BaseConsumer):
             if not q.full():
                 q.put_nowait(timestamped_frame)
 
+        if SHOW_FPS:
+            self.frame_count += 1
+            now = time.monotonic()
+            total_time = now - self.prev_time
+            if total_time >= 1.0:
+                fps = self.frame_count / total_time
+                print(f"FPS: {fps:.2f}")
+                self.frame_count = 0
+                self.prev_time = now
+
 
 class JPG_TO_H264_Consumer(BaseConsumer):
     def __init__(self, output_queue: ShmQueue, frame_queue: List[asyncio.Queue], encode_queue: asyncio.Queue):
         super().__init__(output_queue) 
         self.frame_queue = frame_queue
         self.encode_queue = encode_queue
-    
+        self.frame_count = 0
+        self.prev_time = time.monotonic()
+
     async def process_handler(self, np_array: np.ndarray):
         if not self.encode_queue.full():
             self.encode_queue.put_nowait(np_array)
@@ -71,6 +85,17 @@ class JPG_TO_H264_Consumer(BaseConsumer):
                 for q in self.frame_queue:
                     if not q.full():
                         q.put_nowait(timestamped_frame)
+                
+                if SHOW_FPS:
+                    self.frame_count += 1
+                    now = time.monotonic()
+                    total_time = now - self.prev_time
+                    if total_time >= 1.0:
+                        fps = self.frame_count / total_time
+                        print(f"FPS: {fps:.2f}")
+                        self.frame_count = 0
+                        self.prev_time = now
+
                 await asyncio.sleep(0)
             except asyncio.CancelledError:
                 break

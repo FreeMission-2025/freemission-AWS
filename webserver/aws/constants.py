@@ -109,9 +109,11 @@ class Format(Enum):
 FFMPEG_DIR       = r"C:\ffmpeg\bin"
 INCOMING_FORMAT  = Format.H264  # Valid: JPG or H264
 OUTGOING_FORMAT  = Format.H264  # Valid: JPG or H264
-INFERENCE_ENABLED = bool(False)
+INFERENCE_ENABLED = bool(True)
+SHOW_FPS = bool(True)
 
 QUIC_PORT  = 4433  # quic
 HTTP_PORT  = 80    # http 1.1
 HTTPS_PORT = 8080  # http 2
 PUBLIC_IP  = '127.0.0.1'  # get_public_ip() or '127.0.0.1 '
+

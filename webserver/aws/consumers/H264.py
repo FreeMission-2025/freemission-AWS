@@ -7,7 +7,7 @@ from typing import List
 from inference import ShmQueue
 from .base import BaseConsumer
 from utils.logger import Log
-from constants import FFMPEG_DIR
+from constants import FFMPEG_DIR, SHOW_FPS
 
 # Import ffmpeg
 if os.path.exists(FFMPEG_DIR):
@@ -18,6 +18,8 @@ class H264_TO_JPG_Consumer(BaseConsumer):
     def __init__(self, output_queue: ShmQueue, frame_queue: List[asyncio.Queue]):
         super().__init__(output_queue)
         self.frame_queue = frame_queue
+        self.frame_count = 0
+        self.prev_time = time.monotonic()
 
     async def process_handler(self, np_array: np.ndarray):
         _, buffer = cv2.imencode(".jpg", np_array, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
@@ -27,12 +29,24 @@ class H264_TO_JPG_Consumer(BaseConsumer):
         for q in self.frame_queue:
             if not q.full():
                 q.put_nowait(timestamped_frame)
+        
+        if SHOW_FPS:
+            self.frame_count += 1
+            now = time.monotonic()
+            total_time = now - self.prev_time
+            if total_time >= 1.0:
+                fps = self.frame_count / total_time
+                print(f"FPS: {fps:.2f}")
+                self.frame_count = 0
+                self.prev_time = now
 
 class H264_TO_H264_Consumer(BaseConsumer):
     def __init__(self, output_queue: ShmQueue, frame_queue: List[asyncio.Queue], encode_queue: asyncio.Queue):
         super().__init__(output_queue)
         self.frame_queue = frame_queue
         self.encode_queue = encode_queue
+        self.frame_count = 0
+        self.prev_time = time.monotonic()
 
     async def process_handler(self, np_array: np.ndarray):
         if not self.encode_queue.full():
@@ -53,7 +67,10 @@ class H264_TO_H264_Consumer(BaseConsumer):
 
                 img_yuv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YUV_I420)
                 video_frame = av.VideoFrame.from_ndarray(img_yuv, format='yuv420p')
+
+                #start = time.perf_counter()
                 encoded_packet = await self.loop.run_in_executor(None, lambda: encoder.encode(video_frame))
+                #print(f"enc: {time.perf_counter() - start:.4f}s")
 
                 if len(encoded_packet) == 0:
                     continue
@@ -62,6 +79,17 @@ class H264_TO_H264_Consumer(BaseConsumer):
                 for q in self.frame_queue:
                     if not q.full():
                         q.put_nowait(timestamped_frame)
+
+                if SHOW_FPS:
+                    self.frame_count += 1
+                    now = time.monotonic()
+                    total_time = now - self.prev_time
+                    if total_time >= 1.0:
+                        fps = self.frame_count / total_time
+                        print(f"FPS: {fps:.2f}")
+                        self.frame_count = 0
+                        self.prev_time = now
+
                 await asyncio.sleep(0)
             except asyncio.CancelledError:
                 break

@@ -6,6 +6,7 @@ import numpy as np
 class QueueStoppedError(Exception):
     pass
 
+
 class ShmQueue:
     def __init__(self, shape, dtype=np.uint8, capacity=60):
         self.shape = shape
@@ -17,11 +18,6 @@ class ShmQueue:
         self.shms = [
             shared_memory.SharedMemory(create=True, size=self.frame_size * self.dtype.itemsize)
             for _ in range(capacity)
-        ]
-
-        self.views = [
-            np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf)
-            for shm in self.shms
         ]
 
         self.names = [shm.name for shm in self.shms]
@@ -36,7 +32,6 @@ class ShmQueue:
         self.s_empty = Semaphore(capacity)    # initially all empty
         self.p_lock = Lock()
         self.g_lock = Lock()
-        self.lock = Lock()
 
     def stop(self):
         with self.stopping.get_lock():
@@ -50,31 +45,31 @@ class ShmQueue:
     def put(self, frame: np.ndarray):
         # Block until there is space in the queue
         self.s_empty.acquire()
-
-        if self.stopping.value:
-            self.s_empty.release()
-            return
         
         with self.p_lock:
             idx = self.tail.value
             self.tail.value = (idx + 1) % self.capacity
 
-        self.views[idx][...] = frame
+        shm = self.shms[idx]
+        buf = np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf)
+        np.copyto(buf, frame)
         self.s_full.release()  # Signal that there is an item available for consumption
 
     def get(self) -> np.ndarray:
         # Block until there is an item in the queue
         self.s_full.acquire() 
+
         if self.stopping.value:
             self.s_full.release()
             self.s_empty.release()
             raise QueueStoppedError()
-
+        
         with self.g_lock:
             idx = self.head.value
             self.head.value = (idx + 1) % self.capacity
-
-        frame = self.views[idx].copy()
+            
+        shm = self.shms[idx]
+        frame = np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf).copy()
         self.s_empty.release()  # Signal that there is space available in the queue
         return frame
     
@@ -99,7 +94,7 @@ class ShmQueue:
                 shm.unlink()
             except FileNotFoundError:
                 pass
-
+            
 def benchmark_put(queue, num_frames, frame):
     start = time.perf_counter()
     for _ in range(num_frames):
@@ -172,40 +167,101 @@ if __name__ == "__main__":
 
 ## Correctness check
 ''' 
-def consumer(frame1, frame2, queue):
-        frame1_get = queue.get()
-        frame2_get = queue.get()
+def consumer( queue):
+    frame1_get = queue.get()
+    frame2_get = queue.get()
 
-        # Step 1: Check shape consistency
-        assert frame1.shape == frame1_get.shape, "Shape mismatch for frame1!"
-        assert frame2.shape == frame2_get.shape, "Shape mismatch for frame2!"
-
-        # Step 2: Check data consistency (if the frames are identical)
-        assert np.array_equal(frame1, frame1_get), "Data mismatch for frame1!"
-        assert np.array_equal(frame2, frame2_get), "Data mismatch for frame2!"
+    print(f"f1: {frame1_get.ravel()[:5]}")
+    print(f"f2: {frame2_get.ravel()[:5]}")
 
 def main():
     frame_shape = (720, 1280, 3)  # 720p RGB image
     queue = ShmQueue(shape=frame_shape, capacity=10)  # Capacity of 2 to handle just two frames
+    consumer_process = Process(target=consumer, args=(queue,))
+    consumer_process.start()
 
     frame1 = np.random.randint(6, 256, size=(720, 1280, 3), dtype=np.uint8)
     print("f1:")
-    print(frame1[:1, :5]) 
+    print(frame1.ravel()[:5]) 
+    queue.put(frame1.copy())
 
     frame2 = np.random.randint(2, 256, size=(720, 1280, 3), dtype=np.uint8)
     print("f2:")
-    print(frame2[:1, :5]) 
+    print(frame2.ravel()[:5]) 
 
-    queue.put(frame1.copy())
     queue.put(frame2.copy())
 
 
-    consumer_process = Process(target=consumer, args=(frame1.copy(), frame2.copy(), queue,))
-    consumer_process.start()
     consumer_process.join()
     queue.stop()
     queue.cleanup()
 
 if __name__ == "__main__":
     main()
+'''
+
+'''
+    @staticmethod
+    def from_existing(names, shape, dtype, head, tail, stopping, s_full, s_empty, p_lock, g_lock):
+        dtype = np.dtype(dtype)
+        shms = [shared_memory.SharedMemory(name=name) for name in names]
+        views = [
+            np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+            for shm in shms
+        ]
+
+        q = ShmQueue.__new__(ShmQueue)
+        q.shape = shape
+        q.dtype = dtype
+        q.capacity = len(names)
+        q.frame_size = int(np.prod(shape))
+        q.shms = shms
+        q.views = views
+        q.names = names
+        q.head = head
+        q.tail = tail
+        q.stopping = stopping
+        q.s_full = s_full
+        q.s_empty = s_empty
+        q.p_lock = p_lock
+        q.g_lock = g_lock
+        return q
+
+    def __getstate__(self):
+    # Serialize only the information needed to reconstruct in another process
+    return {
+        'names': self.names,
+        'shape': self.shape,
+        'dtype': self.dtype,
+        'head': self.head,
+        'tail': self.tail,
+        'stopping': self.stopping,
+        's_full': self.s_full,
+        's_empty': self.s_empty,
+        'p_lock': self.p_lock,
+        'g_lock': self.g_lock,
+    }
+
+    def __setstate__(self, state):
+        self.shape = state['shape']
+        self.dtype = np.dtype(state['dtype'])
+        self.names = state['names']
+        self.capacity = len(self.names)
+        self.frame_size = int(np.prod(self.shape))
+
+        self.shms = [shared_memory.SharedMemory(name=name) for name in self.names]
+        self.views = [
+            np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf)
+            for shm in self.shms
+        ]
+
+        self.head = state['head']
+        self.tail = state['tail']
+        self.stopping = state['stopping']
+        self.s_full = state['s_full']
+        self.s_empty = state['s_empty']
+        self.p_lock = state['p_lock']
+        self.g_lock = state['g_lock']
+
+
 '''

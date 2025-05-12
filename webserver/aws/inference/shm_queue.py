@@ -18,11 +18,6 @@ class ShmQueue:
             for _ in range(capacity)
         ]
 
-        self.views = [
-            np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf)
-            for shm in self.shms
-        ]
-
         self.names = [shm.name for shm in self.shms]
 
         # Circular queue pointers (head, tail)
@@ -35,7 +30,6 @@ class ShmQueue:
         self.s_empty = Semaphore(capacity)    # initially all empty
         self.p_lock = Lock()
         self.g_lock = Lock()
-        self.lock = Lock()
 
     def stop(self):
         with self.stopping.get_lock():
@@ -49,31 +43,31 @@ class ShmQueue:
     def put(self, frame: np.ndarray):
         # Block until there is space in the queue
         self.s_empty.acquire()
-
-        if self.stopping.value:
-            self.s_empty.release()
-            return
         
         with self.p_lock:
             idx = self.tail.value
             self.tail.value = (idx + 1) % self.capacity
 
-        self.views[idx][...] = frame
+        shm = self.shms[idx]
+        buf = np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf)
+        np.copyto(buf, frame)
         self.s_full.release()  # Signal that there is an item available for consumption
 
     def get(self) -> np.ndarray:
         # Block until there is an item in the queue
         self.s_full.acquire() 
+
         if self.stopping.value:
             self.s_full.release()
             self.s_empty.release()
             raise QueueStoppedError()
-
+        
         with self.g_lock:
             idx = self.head.value
             self.head.value = (idx + 1) % self.capacity
-
-        frame = self.views[idx].copy()
+            
+        shm = self.shms[idx]
+        frame = np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf).copy()
         self.s_empty.release()  # Signal that there is space available in the queue
         return frame
     
