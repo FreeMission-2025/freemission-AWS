@@ -158,7 +158,9 @@ class H264_TO_H264_PROTOCOL(BaseProtocol):
                 encoded_packet_bytes = await self.decode_queue.get()
 
                 packet = av.packet.Packet(encoded_packet_bytes)
+                #start = time.perf_counter()
                 decoded_video_frames = await self.loop.run_in_executor(None, lambda: decoder.decode(packet)) 
+                #print(f"dec: {time.perf_counter() - start:.4f}s")
 
                 if len(decoded_video_frames) <= 0:
                     continue
