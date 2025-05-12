@@ -31,7 +31,7 @@ app.middlewares.append(GzipMiddleware(min_size=100))
 
 @get("/")
 def home(request: Request):
-    print(request.scope.items())
+    #print(request.scope.items())
     return f"Hello, World! {datetime.now().isoformat()}"
 
 '''

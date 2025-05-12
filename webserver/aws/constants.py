@@ -25,6 +25,7 @@ class ServerContext:
 
     async def cleanup(self):
         """Cleans up resources safely and cancels running tasks."""
+        Log.info("cleaning server context !")
         try:
             if self.transport:
                 self.transport.close()

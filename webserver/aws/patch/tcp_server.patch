@@ -1,0 +1,11 @@
+--- /venv/lib/python3.12/site-packages/hypercorn/asyncio/tcp_server.py	2025-05-12 12:18:07.356327931 +0700
++++ /venv/lib/python3.12/site-packages/hypercorn/asyncio/tcp_server_new.py	2025-05-12 12:18:59.391748886 +0700
+@@ -123,6 +123,8 @@
+             ConnectionResetError,
+             RuntimeError,
+             asyncio.CancelledError,
++            SSLError,
++            TimeoutError
+         ):
+             pass  # Already closed
+         finally:

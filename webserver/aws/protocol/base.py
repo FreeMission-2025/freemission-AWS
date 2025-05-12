@@ -1,10 +1,12 @@
 import asyncio
+import subprocess
 import socket
 import struct
 import time
 from zlib import crc32
 from typing import Any
 from utils.logger import Log
+import platform
 
 class BaseProtocol(asyncio.DatagramProtocol):
     def __init__(self, inference_enabled=True):
@@ -17,16 +19,26 @@ class BaseProtocol(asyncio.DatagramProtocol):
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
         Log.info(f"UDP connection established")
+
         sock: socket.socket = transport.get_extra_info('socket')
+        platforms = platform.system()
+        if platforms == "Linux":
+            original_rmem_max = subprocess.check_output(["sysctl", "net.core.rmem_max"]).decode().strip().split('=')[1]
+            Log.info(f"Original rmem_max: {original_rmem_max} bytes")
+            Log.info("Setting new rmem_max to 32 mb")
+            subprocess.run(["sysctl", "-w", "net.core.rmem_max=33554432"], check=True)
 
         default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
         Log.info(f"Default SO_RCVBUF: {default_rcvbuf} bytes")
 
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32 * 1024 * 1024)
 
+        if platforms == "Linux":
+            Log.info("Restoring default value of rmem_max")
+            subprocess.run(["sysctl", "-w", f"net.core.rmem_max={original_rmem_max}"], check=True)
+
         new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
         Log.info(f"new SO_RCVBUF: {new_rcvbuf} bytes")
-
 
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]):

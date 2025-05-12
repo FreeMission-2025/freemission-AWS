@@ -1,0 +1,5 @@
+linux:
+patch ./venv/lib/python3.12/site-packages/hypercorn/asyncio/tcp_server.py < patch/tcp_server.patch
+
+win:
+patch .\venv\Lib\site-packages\hypercorn\asyncio\tcp_server.py < patch\tcp_server.patch
