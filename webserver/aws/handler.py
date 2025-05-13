@@ -3,7 +3,7 @@ import asyncio
 import multiprocessing
 import os
 
-from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, EC2Port
+from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, EC2Port, encoder, decoder
 from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL
 from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer, H264_TO_JPG_Consumer, H264_TO_H264_Consumer
 from inference import ShmQueue, ObjectDetection
@@ -16,8 +16,8 @@ if not os.path.exists(model_path):
     raise FileNotFoundError(f"Model file not found at: {model_path}")
 
 ctx = ServerContext()
-ctx.input_queue  = ShmQueue(shape=(720,1280,3), capacity=120)
-ctx.output_queue = ShmQueue(shape=(720,1280,3), capacity=120)
+ctx.input_queue  = ShmQueue(shape=(480,640,3), capacity=120)
+ctx.output_queue = ShmQueue(shape=(480,640,3), capacity=120)
 
 def inference(**kwargs):
     onnx = ObjectDetection(**kwargs)
@@ -63,7 +63,7 @@ async def handle_jpg_to_h264():
         ctx.infer_process.start()
         ctx.consumer_task = asyncio.create_task(consumer.handler())
 
-    ctx.encode_task  = asyncio.create_task(consumer.encode())
+    ctx.encode_task  = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))
 
 async def handle_h264_to_jpg():
     loop = asyncio.get_event_loop()
@@ -86,7 +86,7 @@ async def handle_h264_to_jpg():
         consumer = H264_TO_JPG_Consumer(ctx.output_queue, frame_queues)
         ctx.consumer_task = asyncio.create_task(consumer.handler())
     
-    ctx.decode_task = asyncio.create_task(protocol.decode())
+    ctx.decode_task = asyncio.create_task(protocol.decode(decoder.name, decoder.device_type))
 
 async def handle_h264_to_h264():
     loop = asyncio.get_event_loop()
@@ -108,6 +108,6 @@ async def handle_h264_to_h264():
         ctx.infer_process.start()
 
         ctx.consumer_task = asyncio.create_task(consumer.handler())
-        ctx.decode_task = asyncio.create_task(protocol.decode())
+        ctx.decode_task = asyncio.create_task(protocol.decode(decoder.name, decoder.device_type))
 
-    ctx.encode_task = asyncio.create_task(consumer.encode())
+    ctx.encode_task = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))

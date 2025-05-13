@@ -16,8 +16,10 @@ cap = cv2.VideoCapture(CAMERA_INDEX)
 if not cap.isOpened():
     print("Error: Could not open camera.")
     exit()
-#cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-#cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+#cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920) 640
+#cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080) 480
+
+
 print("Capturing video and sending it to EC2 as fast as possible...")
 
 try:

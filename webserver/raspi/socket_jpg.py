@@ -58,8 +58,8 @@ class VideoStream:
         if not self.cap.isOpened():
             raise Exception("Error: Could not open webcam.")
         
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         self.ret, self.frame = self.cap.read()
         self.frame_queue = frame_queue
@@ -132,7 +132,7 @@ async def main():
                 if frame is None:
                     continue
 
-                _, encoded_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                _, encoded_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
                 encoded_frame = encoded_frame.tobytes()
 
                 print(len(encoded_frame))

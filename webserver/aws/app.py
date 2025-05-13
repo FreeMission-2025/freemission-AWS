@@ -24,10 +24,10 @@ app.use_cors(
 
 app.middlewares.append(GzipMiddleware(min_size=100))
 
-# current_file = os.path.abspath(__file__)
-# current_dir = os.path.dirname(current_file)
-# static_path = os.path.join(current_dir, 'views')
-# app.serve_files(source_folder=static_path, discovery=True)
+current_file = os.path.abspath(__file__)
+current_dir = os.path.dirname(current_file)
+static_path = os.path.join(current_dir, 'static')
+app.serve_files(source_folder=static_path, discovery=True)
 
 @get("/")
 def home(request: Request):
@@ -80,14 +80,14 @@ async def h264_stream(request: Request) -> AsyncIterable[ServerSentEvent]:
                 Log.info("The request is disconnected!")
                 break
             try:
-                timestamp, frame_bytes = await frame_queue.get()
+                timestamp, packed_data = await frame_queue.get()
                 age = time.time() - timestamp
-                encoded_frame = base64.b64encode(frame_bytes).decode('utf-8')
+                encoded = base64.b64encode(packed_data).decode("ascii")
 
                 if age > 0.2:
                     Log.warning(f"Skipped old frame ({age:.3f}s old)")
                     continue
-                yield ServerSentEvent({"message": encoded_frame})
+                yield ServerSentEvent({"message": encoded})
 
                 await asyncio.sleep(0.005)
             except asyncio.CancelledError:
@@ -165,14 +165,14 @@ async def ws_h264_stream(websocket: WebSocket):
             await asyncio.sleep(0.02)
         while True:
             try:
-                timestamp, frame_bytes = await frame_queue.get()
+                timestamp, packed_data = await frame_queue.get()
                 age = time.time() - timestamp
 
                 if age > 0.2:
                     Log.warning(f"Skipped old frame ({age:.3f}s old)")
                     continue
 
-                await websocket.send_bytes(frame_bytes)
+                await websocket.send_bytes(packed_data)
                 await asyncio.sleep(0.005)
             except asyncio.CancelledError:
                 break

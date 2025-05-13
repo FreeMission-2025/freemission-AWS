@@ -1,5 +1,6 @@
 import asyncio
 import os
+import struct
 import cv2
 import time
 from typing import List, Optional
@@ -8,6 +9,7 @@ from .base import BaseProtocol
 from inference import ShmQueue
 from utils.logger import Log
 from constants import FFMPEG_DIR
+from utils.ffmpeg_helper import get_decoder, is_keyframe
 
 # Import ffmpeg
 if os.path.exists(FFMPEG_DIR):
@@ -40,20 +42,20 @@ class H264_TO_JPG_PROTOCOL(BaseProtocol):
         if not self.decode_queue.full():
             self.decode_queue.put_nowait(full_frame)
 
-    async def decode(self):
+    async def decode(self, decoder_name: str, device_type: str | None = None):
         if self.input_queue is not None:
-            await self.__decode_to_shm(self.input_queue, self.decode_queue, self.inference_enabled, self.loop)
+            await self.__decode_to_shm(self.input_queue, self.decode_queue, self.inference_enabled, self.loop, decoder_name, device_type)
         elif self.frame_queues is not None:
-            await self.__decode_to_frame(self.frame_queues, self.decode_queue, self.inference_enabled, self.loop)
+            await self.__decode_to_frame(self.frame_queues, self.decode_queue, self.inference_enabled, self.loop, decoder_name, device_type)
         else:
             raise ValueError("Input Queue not supported. Pass correct type of input_queue in H264_TO_JPG_PROTOCOL")
         
     @staticmethod
-    async def __decode_to_shm(input_queue: ShmQueue, decode_queue: asyncio.Queue,  inference_enabled: bool, loop: asyncio.AbstractEventLoop):
+    async def __decode_to_shm(input_queue: ShmQueue, decode_queue: asyncio.Queue,  inference_enabled: bool, loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
         if not inference_enabled:
             raise ValueError("Inference must be enabled")
 
-        decoder = av.CodecContext.create('h264', 'r')
+        decoder = get_decoder(decoder_name, device_type)
         while True:
             try:
                 encoded_packet_bytes = await decode_queue.get()
@@ -78,11 +80,11 @@ class H264_TO_JPG_PROTOCOL(BaseProtocol):
                     Log.exception(f"error at decode_video: {e}")
 
     @staticmethod
-    async def __decode_to_frame(frame_queues: List[asyncio.Queue], decode_queue: asyncio.Queue,  inference_enabled: bool, loop: asyncio.AbstractEventLoop):
+    async def __decode_to_frame(frame_queues: List[asyncio.Queue], decode_queue: asyncio.Queue,  inference_enabled: bool, loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
         if inference_enabled:
             raise ValueError("Inference must be disabled")
         
-        decoder = av.CodecContext.create('h264', 'r')
+        decoder = get_decoder(decoder_name, device_type)
         while True:
             try:
                 encoded_packet_bytes = await decode_queue.get()
@@ -143,16 +145,20 @@ class H264_TO_H264_PROTOCOL(BaseProtocol):
             if not self.decode_queue.full():
                 self.decode_queue.put_nowait(full_frame)
         else:
-            timestamped_frame = (time.time(), full_frame)
+            timestamp_us = int(time.time() * 1_000_000)
+            frame_type = 1 if is_keyframe(full_frame) else 0
+            packet_data = struct.pack(">QB", timestamp_us, frame_type) + full_frame
+
+            timestamped_frame = (time.time(), packet_data)
             for q in self.frame_queues:
                 if not q.full():
                     q.put_nowait(timestamped_frame)
 
-    async def decode(self):
+    async def decode(self, decoder_name: str, device_type: str | None = None):
         if not self.inference_enabled:
             raise ValueError("Inference must be enabled")
 
-        decoder = av.CodecContext.create('h264', 'r')
+        decoder = get_decoder(decoder_name, device_type)
         while True:
             try:
                 encoded_packet_bytes = await self.decode_queue.get()

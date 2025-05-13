@@ -93,13 +93,18 @@ class ServerContext:
         except Exception as e:
             Log.exception(f"Error at cleanup input_queue: {e}")        
 
+class base_codec():
+    def __init__(self, name: str, device_type: str = None):
+        self.name = name
+        self.device_type = device_type
+
 # Config
 class EC2Port(Enum):
     UDP_PORT_JPG_TO_JPG   = int(8085)
     UDP_PORT_JPG_TO_H264  = int(8085)
     UDP_PORT_H264_TO_JPG  = int(8086)
     UDP_PORT_H264_TO_H264 = int(8086)
-    # {Incoming-format}_TO_{Outgoing-format}
+    # {Incoming-format} _TO_ {Outgoing-format}
     # For same incoming protocol == Same ip because code for raspi_socket is same
 
 class Format(Enum):
@@ -107,10 +112,13 @@ class Format(Enum):
     H264 = "H264"
 
 FFMPEG_DIR       = r"C:\ffmpeg\bin"
-INCOMING_FORMAT  = Format.H264  # Valid: JPG or H264
-OUTGOING_FORMAT  = Format.H264  # Valid: JPG or H264
-INFERENCE_ENABLED = bool(True)
+INCOMING_FORMAT  = Format.H264      # Valid: JPG or H264
+OUTGOING_FORMAT  = Format.H264      # Valid: JPG or H264
+INFERENCE_ENABLED = bool(False)
 SHOW_FPS = bool(True)
+
+encoder = base_codec('h264_nvenc', 'cuda')
+decoder = base_codec('h264')
 
 QUIC_PORT  = 4433  # quic
 HTTP_PORT  = 80    # http 1.1

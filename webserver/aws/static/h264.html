@@ -6,7 +6,40 @@
     <title>H264</title>
 </head>
 <body>
+    <canvas id="canvas"></canvas>
     <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let decoder = null
+        function createDecoder() {
+            return new VideoDecoder({
+                output: frame => {
+                canvas.width = frame.codedWidth;
+                canvas.height = frame.codedHeight;
+                ctx.drawImage(frame, 0, 0);
+                frame.close();
+            },
+            error: e => {
+                console.error("Decoder error:", e);
+                if (decoder.state !== "closed") {
+                    decoder.close();  
+                }
+                decoder = createDecoder();
+                decoder.configure({
+                    codec: 'avc1.4D4028', 
+                    hardwareAcceleration: 'prefer-software',
+                });
+            }
+        });
+        }
+
+        decoder = createDecoder()
+        decoder.configure({
+            codec: 'avc1.4D4028', // baseline profile H264
+            hardwareAcceleration: 'prefer-hardware',
+        });
+
         const ws = new WebSocket('ws://localhost:80/ws_h264_stream');
         
         // Important: expect binary data
@@ -19,28 +52,20 @@
         
         ws.onmessage = async (event) => {
             const arrayBuffer = event.data;  // Already ArrayBuffer because binaryType
-        
-            // Convert to Uint8Array for processing
-            const rawFrame = new Uint8Array(arrayBuffer);    
-            // Now you can feed rawFrame to your WebCodecs decoder, for example:
-        
-            if (!window.decoder) {
-                window.decoder = new VideoDecoder({
-                    output: frame => drawFrame(frame),
-                    error: e => console.error("Decoder error:", e)
-                });
-                
-                await window.decoder.configure({
-                    codec: 'avc1.42E01E', // baseline profile H264
-                    hardwareAcceleration: 'prefer-hardware'
-                });
-            }
-        
-            // Decode the H264 raw frame
+            const dv = new DataView(arrayBuffer);
+
+            // Read metadata from the first 9 bytes
+            const timestamp_us = Number(dv.getBigUint64(0, false)); // big-endian timestamp
+            const frameTypeByte = dv.getUint8(8);
+            const frameType = frameTypeByte === 1 ? "key" : "delta";
+
+            // Extract the raw frame data (skip the first 9 bytes: timestamp + frame type)
+            const rawFrame = new Uint8Array(arrayBuffer, 9);
+
             try {
-                window.decoder.decode(new EncodedVideoChunk({
-                    type: "key",  // if you know it's keyframe (I can help auto-detect later)
-                    timestamp: performance.now() * 1000,  // microseconds
+                decoder.decode(new EncodedVideoChunk({
+                    type: frameType, 
+                    timestamp: timestamp_us,  // microseconds
                     data: rawFrame
                 }));
             } catch (e) {
@@ -48,24 +73,6 @@
             }
         };
         
-        // Helper to draw frames to canvas
-        function drawFrame(frame) {
-            const canvas = document.getElementById("videoCanvas");
-            if (!canvas) return;
-            
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
-        
-            const bitmap = frame;
-            createImageBitmap(bitmap).then((bmp) => {
-                canvas.width = bmp.width;
-                canvas.height = bmp.height;
-                ctx.drawImage(bmp, 0, 0);
-                frame.close();
-            });
-        }
         </script>
-        
-        <canvas id="videoCanvas" style="border: 1px solid white;"></canvas>
     <body>
 </html>

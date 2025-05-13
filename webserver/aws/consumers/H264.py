@@ -1,4 +1,5 @@
 import asyncio
+import struct
 import cv2
 import os
 import numpy as np
@@ -8,6 +9,8 @@ from inference import ShmQueue
 from .base import BaseConsumer
 from utils.logger import Log
 from constants import FFMPEG_DIR, SHOW_FPS
+from av.codec.hwaccel import HWAccel, HWDeviceType
+from utils.ffmpeg_helper import h264_nvenc, libx264_encoder
 
 # Import ffmpeg
 if os.path.exists(FFMPEG_DIR):
@@ -52,14 +55,33 @@ class H264_TO_H264_Consumer(BaseConsumer):
         if not self.encode_queue.full():
             self.encode_queue.put_nowait(np_array)
     
-    async def encode(self):
-        encoder = av.CodecContext.create('libx264', 'w')
-        encoder.width = 1280
-        encoder.height = 720
-        encoder.pix_fmt = 'yuv420p'
-        encoder.bit_rate = 3000000  
-        encoder.framerate = 30 
-        encoder.options = {'tune': 'zerolatency'} 
+    async def encode(self, codec_name: str, device_type: str | HWDeviceType = None):
+        isHwSupported = False
+        isEncoderExist = False
+        try:
+            codec = av.Codec(codec_name, 'w')  
+            isEncoderExist = True
+
+            configs = codec.hardware_configs
+            if device_type is not None:
+                if not configs:
+                    raise ValueError(f"{codec_name} doesn't support {device_type}")
+                
+                if isinstance(device_type, HWDeviceType):
+                    device_type = device_type.name
+
+                for config in configs:
+                    if config.device_type.name == device_type and config.is_supported:
+                        isHwSupported = True
+                        break
+            
+        except Exception as e:
+            Log.exception(e, exc_info=False)
+
+        if isHwSupported or (isEncoderExist and codec_name == 'h264_nvenc'):
+            encoder = h264_nvenc()
+        else:
+            encoder = libx264_encoder()
 
         while True:
             try:
@@ -75,11 +97,19 @@ class H264_TO_H264_Consumer(BaseConsumer):
                 if len(encoded_packet) == 0:
                     continue
                 
-                timestamped_frame = (time.time(), bytes(encoded_packet[0]))
+                #print(len(bytes(encoded_packet[0])))
+
+                timestamp_us = int(encoded_packet[0].pts * encoded_packet[0].time_base * 1_000_000)
+                frame_type = 1 if encoded_packet[0].is_keyframe else 0
+
+                # timestamp (8 byte) || frame_type (1 byte) || raw H.264  (N byte)
+                packet_data = struct.pack(">QB", timestamp_us, frame_type) + bytes(encoded_packet[0])
+
+                timestamped_frame = (time.time(), packet_data)
                 for q in self.frame_queue:
                     if not q.full():
                         q.put_nowait(timestamped_frame)
-
+                
                 if SHOW_FPS:
                     self.frame_count += 1
                     now = time.monotonic()

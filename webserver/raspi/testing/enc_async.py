@@ -23,7 +23,9 @@ import av
 import cv2
 import contextlib
 import time
-
+from av.codec.hwaccel import HWAccel
+from av.packet import Packet
+from av.video.frame import VideoFrame
 class VideoStream:
     def __init__(self, frame_queue:asyncio.Queue, src=0, desired_width=680,):
         api = cv2.CAP_MSMF if system =='Windows' else cv2.CAP_ANY
@@ -32,8 +34,8 @@ class VideoStream:
         if not self.cap.isOpened():
             raise Exception("Error: Could not open webcam.")
         
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         self.ret, self.frame = self.cap.read()
         self.frame_queue = frame_queue
@@ -61,18 +63,55 @@ class VideoStream:
         self.stopped = True
         self.cap.release()
 
+def is_keyframe(data: bytes) -> bool:
+    i = 0
+    while i < len(data) - 4:
+        if data[i:i+4] == b'\x00\x00\x00\x01':
+            nal_start = i + 4
+        elif data[i:i+3] == b'\x00\x00\x01':
+            nal_start = i + 3
+        else:
+            i += 1
+            continue
+
+        if nal_start >= len(data):
+            break
+
+        nal_unit_type = data[nal_start] & 0x1F
+        if nal_unit_type == 5:
+            return True
+        i = nal_start + 1  # move forward after this NAL
+    return False
+
 async def capture_camera():
     # Initialize the encoder.
-    encoder = av.CodecContext.create('libx264', 'w')
-    encoder.width = 1280
-    encoder.height = 720
+    hwaccel = HWAccel(device_type='cuda', allow_software_fallback=False)
+    encoder = av.CodecContext.create('h264_nvenc', 'w', hwaccel)
+    encoder.width = 640
+    encoder.height = 480
     encoder.pix_fmt = 'yuv420p'
-    encoder.bit_rate = 3000000  
+    encoder.bit_rate = 2000000  
     encoder.framerate = 30 
-    encoder.options = {'tune': 'zerolatency'} 
+    encoder.profile = 'Baseline'
+    encoder.options = {
+        'preset': 'p4',            # fast (low quality), or try 'p4' for more balance
+        'rc': 'vbr',               # variable bitrate to save size
+        'cq': '25',                # target quality if needed (lower = better quality; try 23-28)
+        'spatial_aq': '1',         # Spatial adaptive quantization (helps quality) . Improve quality in area with high detail
+        'temporal_aq': '0',        # enable temporal AQ. Benefical for non moving background area
+        'device': '0',   
+        'bf': '0',                 # Disable B-frames for lower latency. higher = lower size
+        'g': '60'
+                 
+    }
+    print(encoder.is_hwaccel)
+    print(encoder.profiles)
 
     # Initialize the decoder.
+    #hwaccel = HWAccel(device_type='cuda', allow_software_fallback=False)
     decoder = av.CodecContext.create('h264', 'r')
+    #decoder.options = {'device_type': 'cuda', 'format': 'cuda'}
+    #print(decoder.is_hwaccel)
 
     # Start the video stream in a separate thread
     frame_queue = asyncio.Queue(maxsize=120)
@@ -100,10 +139,22 @@ async def capture_camera():
             if len(encoded_packet) == 0:
                 continue
 
-            encoded_packet_bytes = bytes(encoded_packet[0])
-            #print(len(encoded_packet_bytes))
+            if encoded_packet[0].pts is not None:
+                timestamp_us = int(encoded_packet[0].pts * encoded_packet[0].time_base * 1_000_000)
 
-            packet = av.packet.Packet(encoded_packet_bytes)
+            
+            if encoded_packet[0].duration is not None:
+                duration_us = int(encoded_packet[0].duration * encoded_packet[0].time_base * 1_000_000)
+            
+            if encoded_packet[0].is_keyframe:
+                print("Keyframe detected")
+            else:
+                print("Delta frame")
+
+            encoded_packet_bytes = bytes(encoded_packet[0])
+            print(len(encoded_packet_bytes))
+
+            packet = Packet(encoded_packet_bytes)
 
             # Step 2: Decode the packet.
             #decoded_packets = decoder.decode(packet)
@@ -112,7 +163,10 @@ async def capture_camera():
 
             if len(decoded_video_frames) > 0:
                 # Step 3: Convert the pixel format from the encoder color format to BGR for displaying.
-                decoded_video_frame = decoded_video_frames[0]
+                decoded_video_frame: VideoFrame = decoded_video_frames[0]
+                if decoded_video_frame.key_frame:
+                    print("yess fr")
+
                 decoded_frame = decoded_video_frame.to_ndarray(format='yuv420p')
                 frame = cv2.cvtColor(decoded_frame, cv2.COLOR_YUV2BGR_I420)
                 #frame = decoded_video_frame.to_ndarray(format='bgr24')  # BRG is also supported...

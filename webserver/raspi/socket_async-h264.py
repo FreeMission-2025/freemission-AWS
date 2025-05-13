@@ -80,8 +80,8 @@ class VideoStream:
         if not self.cap.isOpened():
             raise Exception("Error: Could not open webcam.")
         
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         self.ret, self.frame = self.cap.read()
         self.frame_queue = frame_queue
@@ -118,8 +118,8 @@ class VideoStream:
 async def encode_video(frame_queue: asyncio.Queue, encode_queue: asyncio.Queue):
     import av
     encoder = av.CodecContext.create('libx264', 'w')
-    encoder.width = 1280
-    encoder.height = 720
+    encoder.width = 640
+    encoder.height = 480
     encoder.pix_fmt = 'yuv420p'
     encoder.bit_rate = 3000000  
     encoder.framerate = 30 
