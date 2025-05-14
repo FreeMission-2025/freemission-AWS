@@ -5,7 +5,7 @@ import cv2
 import time
 from typing import List, Optional
 import numpy as np
-from .base import BaseProtocol
+from .base import BaseUDP
 from inference import ShmQueue
 from utils.logger import Log
 from constants import FFMPEG_DIR
@@ -17,7 +17,7 @@ if os.path.exists(FFMPEG_DIR):
 import av
 from av.packet import Packet
 
-class H264_TO_JPG_PROTOCOL(BaseProtocol):
+class H264_TO_JPG_PROTOCOL(BaseUDP):
     def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], decode_queue: asyncio.Queue,  inference_enabled = True):
         super().__init__(inference_enabled)
 
@@ -120,7 +120,7 @@ class H264_TO_JPG_PROTOCOL(BaseProtocol):
                     Log.exception(f"error at decode_video: {e}")
 
 
-class H264_TO_H264_PROTOCOL(BaseProtocol):
+class H264_TO_H264_PROTOCOL(BaseUDP):
     def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], decode_queue: asyncio.Queue | None,  inference_enabled = True):
         super().__init__(inference_enabled)
         
@@ -159,6 +159,8 @@ class H264_TO_H264_PROTOCOL(BaseProtocol):
             raise ValueError("Inference must be enabled")
 
         decoder = get_decoder(decoder_name, device_type)
+        Log.info(f"using {decoder.name}")
+        
         while True:
             try:
                 encoded_packet_bytes = await self.decode_queue.get()

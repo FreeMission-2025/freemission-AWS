@@ -1,3 +1,4 @@
+from collections import deque
 import platform
 import os
 import  queue
@@ -38,7 +39,7 @@ import signal
 '''
 EC2_UDP_IP = "127.0.0.1"
 EC2_UDP_PORT = 8086
-MAX_UDP_PACKET_SIZE = 60000  # Max safe UDP payload size
+MAX_UDP_PACKET_SIZE = 1450  # Max safe UDP payload size
 CAMERA_INDEX = 0             # Default camera index
 
 ''' Global Variable '''
@@ -54,28 +55,76 @@ def handle_exit_signal(signum, frame):
 signal.signal(signal.SIGINT, handle_exit_signal)
 signal.signal(signal.SIGTERM, handle_exit_signal)
 
-class UDPSender(asyncio.DatagramProtocol):
-    def __init__(self):
-        self.transport = None
+ACK_MARKER    = b'\x05\x06\x7F\xED'
+ACK_FORMAT    = "!4s 3s B"       # | 4-byte marker | 3-byte frame_id | 1-byte chunk_index |
+ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 
+
+class UDPSender(asyncio.DatagramProtocol):
+    def __init__(self, window_size=207, timeout=0.05):
+        self.transport     = None
+        self._send_queue   = deque()         # (fid, idx, packet)
+        self._pending      = {}              # (fid,idx) -> (packet, last_send_ms)
+        self.window_size   = window_size
+        self.timeout       = timeout
+        self._window_task  = None
+        self._resend_task  = None
+    
     def connection_made(self, transport):
         self.transport = transport
+        loop = asyncio.get_event_loop()
+
         sock: socket.socket = transport.get_extra_info('socket')
 
         default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
         print(f"Default SO_sndbuf: {default_sndbuf} bytes")
-
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 32 * 1024 * 1024)
-
         new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
         print(f"new SO_sndbuf: {new_sndbuf} bytes")
 
-    def datagram_received(self, data, addr):
-        print(f"Received from {addr}: ", data.decode())
-
-    def send(self, data: bytes, addr):
+        self._window_task = loop.create_task(self._window_sender())
+        self._resend_task = loop.create_task(self._retransmitter())
+    
+    def send(self, data: bytes):
+        """Send via preconfigured EC2_UDP_IP/PORT."""
         if self.transport:
-            self.transport.sendto(data, addr)
+            self.transport.sendto(data, (EC2_UDP_IP, EC2_UDP_PORT))
+
+    def enqueue_chunk(self, fid: int, idx: int, packet: bytes):
+        """Call this from your send_frame() instead of directly sending."""
+        self._send_queue.append((fid, idx, packet))
+
+    async def _window_sender(self):
+        while True:
+            # fill up to window_size
+            while len(self._pending) < self.window_size and self._send_queue:
+                fid, idx, packet = self._send_queue.popleft()
+                self.send(packet)
+                now = int(time.time() * 1000)
+                self._pending[(fid, idx)] = (packet, now)
+            await asyncio.sleep(0.001)  # 1 ms tick
+
+    async def _retransmitter(self):
+        while True:
+            now = int(time.time() * 1000)
+            for key, (packet, last) in list(self._pending.items()):
+                if now - last >= self.timeout * 1000:
+                    self.send(packet)
+                    print(f"Retransmit frame={key[0]} chunk={key[1]}")
+                    self._pending[key] = (packet, now)
+            await asyncio.sleep(0.01)
+
+    def datagram_received(self, data: bytes, addr):
+        # single method handles both ACKs and normal datagrams
+        if len(data) == ACK_SIZE and data.startswith(ACK_MARKER):
+            _, fid_bytes, chunk_idx = struct.unpack(ACK_FORMAT, data)
+            key = (int.from_bytes(fid_bytes, 'big'), chunk_idx)
+            if key in self._pending:
+                del self._pending[key]
+            print(f"ACK received: frame={key[0]} chunk={key[1]}")
+        else:
+            # any other inbound message
+            print(f"Received from {addr}: {data!r}")
 
     def error_received(self, exc):
         print(f"Error received: {exc}")
@@ -162,27 +211,53 @@ async def encode_video(frame_queue: multiprocessing.Queue, encode_queue: multipr
             break
         except Exception as e:
             print(f"error: {e}")
-        
-async def send_frame(protocol: UDPSender, encoded_frame: bytes, addr: tuple[str, int]):
+            
+START_MARKER = b'\x01\x02\x7F\xED'  # 4-byte start marker
+END_MARKER = b'\x03\x04\x7F\xED'    # 4-byte end marker
+
+# Updated header format: 4s (marker), I (Time Stamp), 3s (frame_id), B (total_chunks), B (chunk_index), H (chunk_length), I (checksum)
+HEADER_FORMAT = "!4s I 3s B B H I"
+HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
+MAX_PAYLOAD_SIZE = MAX_UDP_PACKET_SIZE - HEADER_SIZE - len(END_MARKER)
+
+async def send_frame(protocol: UDPSender, encoded_frame: bytes):
     global frame_id_counter
-    frame_id = frame_id_counter & 0xFFFF  # stay within 2 bytes
+    frame_id = frame_id_counter
+    frame_id_b = (frame_id & 0xFFFFFF).to_bytes(3, 'big')  # Stay within 3 bytes (24-bit)
     frame_id_counter += 1
 
     # Break frame into chunks
-    total_chunks = (len(encoded_frame) + MAX_UDP_PACKET_SIZE - 1) // MAX_UDP_PACKET_SIZE
+    print(len(encoded_frame))
+    total_chunks = (len(encoded_frame) + MAX_PAYLOAD_SIZE - 1) // MAX_PAYLOAD_SIZE
+
+    # Convert time to milliseconds and make sure it's an integer (for 4-byte format)
+    time_ms = int(time.time() * 1000) % 0x100000000
 
     for chunk_index in range(total_chunks):
-        start = chunk_index * MAX_UDP_PACKET_SIZE
-        end = start + MAX_UDP_PACKET_SIZE
+        start = chunk_index * MAX_PAYLOAD_SIZE
+        end = start + MAX_PAYLOAD_SIZE
         chunk = encoded_frame[start:end]
+        chunk_length = len(chunk)
         checksum = crc32(chunk)
 
-        # Create header
-        # Format: | frame_id (2 bytes) | total_chunks (1 byte) | chunk_index (1 byte) | crc32_checksum (4 bytes) |
-        header = struct.pack("!HBBI", frame_id, total_chunks, chunk_index, checksum)
+        # | START_MARKER (4 bytes) | timestamp (4 bytes) | frame_id (3 bytes) | total_chunks (1 byte) | chunk_index (1 byte) | chunk_length (2 bytes) | crc32_checksum (4 bytes) |
+        header = struct.pack(HEADER_FORMAT, START_MARKER, time_ms, frame_id_b, total_chunks, chunk_index, chunk_length, checksum)
 
-        protocol.send(header + chunk, addr)
+        # Send the header + chunk + END_MARKER
+        protocol.enqueue_chunk(frame_id, chunk_index, header + chunk + END_MARKER)
+
         
+        # Debugging: print out the unpacked header data
+        '''        
+        print(f"Start Marker: {START_MARKER}")
+        print(f"Timestamp: {time_ms}")
+        print(f"Frame ID (int): {int.from_bytes(frame_id, byteorder='big')}")
+        print(f"Total Chunks: {total_chunks}")
+        print(f"Chunk Index: {chunk_index}")
+        print(f"Chunk Length: {chunk_length}")
+        print(f"Checksum: {checksum}")
+        print(f"End Marker: {END_MARKER}")
+        '''
 def async_encode(frame_queue: multiprocessing.Queue, encode_queue: multiprocessing.Queue):
     install_loop()
     try:
@@ -220,7 +295,7 @@ async def main():
         while keep_running:
             try:
                 encoded_frame = await loop.run_in_executor(None, lambda: encode_queue.get(timeout=5))
-                await send_frame(protocol, encoded_frame, (EC2_UDP_IP, EC2_UDP_PORT))
+                await send_frame(protocol, encoded_frame)
 
                 frame_count += 1
                 now = time.monotonic()

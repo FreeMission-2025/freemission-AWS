@@ -83,6 +83,7 @@ class H264_TO_H264_Consumer(BaseConsumer):
         else:
             encoder = libx264_encoder()
 
+        Log.info(f"using {encoder.name}")
         while True:
             try:
                 frame_bgr = await self.encode_queue.get()

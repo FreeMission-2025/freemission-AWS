@@ -117,7 +117,7 @@ OUTGOING_FORMAT  = Format.H264      # Valid: JPG or H264
 INFERENCE_ENABLED = bool(False)
 SHOW_FPS = bool(True)
 
-encoder = base_codec('h264_nvenc', 'cuda')
+encoder = base_codec('libx264')
 decoder = base_codec('h264')
 
 QUIC_PORT  = 4433  # quic

@@ -3,10 +3,10 @@ import cv2
 import time
 from typing import List, Optional
 import numpy as np
-from .base import BaseProtocol
+from .base import BaseUDP
 from inference import ShmQueue
 
-class JPG_TO_JPG_PROTOCOL(BaseProtocol):
+class JPG_TO_JPG_PROTOCOL(BaseUDP):
     def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], inference_enabled = True ):
         super().__init__(inference_enabled)
 
@@ -42,7 +42,7 @@ class JPG_TO_JPG_PROTOCOL(BaseProtocol):
                 if not q.full():
                     q.put_nowait(timestamped_frame)
 
-class JPG_TO_H264_PROTOCOL(BaseProtocol):
+class JPG_TO_H264_PROTOCOL(BaseUDP):
     def __init__(self, input_queue: ShmQueue | asyncio.Queue, inference_enabled = True ):
         super().__init__(inference_enabled)
 
