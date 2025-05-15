@@ -6,7 +6,7 @@ from multiprocessing import Lock, Semaphore, Value, Array
 import os
 import pickle
 from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, jpg_queue, EC2Port, encoder, decoder, ordered_queue, protocol_closed, frame_dispatch_reset
-from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL
+from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL, JPG_TO_JPG_TCP
 from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer, H264_TO_JPG_Consumer, H264_TO_H264_Consumer
 from inference import ShmQueue, ObjectDetection, SyncObject
 from utils.ordered_packet import OrderedPacketDispatcher
@@ -49,6 +49,36 @@ ctx.output_queue = ShmQueue(shape=(480,640,3),sync=sync_out, capacity=SHM_CAPACI
 def inference(**kwargs):
     onnx = ObjectDetection(**kwargs)
     onnx.run()
+
+'''
+    TCP
+'''
+class tcp_handle_jpg_to_jpg(): 
+    @staticmethod
+    async def start():
+        loop = asyncio.get_event_loop()
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+        
+        ctx.server = await loop.create_server(
+            lambda: JPG_TO_JPG_TCP(protocol_input), host='0.0.0.0', port=EC2Port.TCP_PORT_JPG_TO_JPG.value)
+        
+        print(f"TCP listener (JPG to JPG) started on 0.0.0.0:{EC2Port.TCP_PORT_JPG_TO_JPG.value}")
+        
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": ctx.input_queue,
+                "output_queue": ctx.output_queue,
+            }
+            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            ctx.infer_process.start()
+
+            consumer = JPG_TO_JPG_Consumer(ctx.output_queue, frame_queues)
+            ctx.consumer_task = asyncio.create_task(consumer.handler())
+            
+'''
+    UDP
+'''
 
 class handle_jpg_to_jpg(): 
     @staticmethod

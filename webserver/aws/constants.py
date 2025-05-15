@@ -2,7 +2,7 @@ import asyncio
 from enum import Enum
 from multiprocessing import Process
 from typing import List, Optional
-from asyncio import DatagramTransport, Queue, Task
+from asyncio import DatagramTransport, Queue, Task, Server
 from inference import ShmQueue
 from utils.logger import Log
 from utils.public_ip import get_public_ip
@@ -31,6 +31,7 @@ class ServerContext:
         self.ordering_task: Optional[Task] = None
         self.jpg_producer_task: Optional[Task] = None
         self.protocol: any = None
+        self.server:Optional[Server] = None
 
     async def cleanup(self):
         """Cleans up resources safely and cancels running tasks."""
@@ -124,6 +125,13 @@ class ServerContext:
         except Exception as e:
             Log.exception(f"Error at cleanup input_queue: {e}")        
 
+        try:
+            if self.server:
+                self.server.close()
+                print("Server shut down cleanly.")
+        except Exception as e:
+            Log.exception(f"Error at cleanup input_queue: {e}")    
+
 class base_codec():
     def __init__(self, name: str, device_type: str = None):
         self.name = name
@@ -135,8 +143,13 @@ class EC2Port(Enum):
     UDP_PORT_JPG_TO_H264  = int(8085)
     UDP_PORT_H264_TO_JPG  = int(8086)
     UDP_PORT_H264_TO_H264 = int(8086)
+    TCP_PORT_JPG_TO_JPG   = int(8087)
+    TCP_PORT_JPG_TO_H264  = int(8087)
+    TCP_PORT_H264_TO_JPG  = int(8088)
+    TCP_PORT_H264_TO_H264 = int(8088)
     # {Incoming-format} _TO_ {Outgoing-format}
     # For same incoming protocol == Same ip because code for raspi_socket is same
+
 
 class Format(Enum):
     JPG = "JPG"
@@ -145,6 +158,7 @@ class Format(Enum):
 FFMPEG_DIR       = r"C:\ffmpeg\bin"
 INCOMING_FORMAT  = Format.JPG      # Valid: JPG or H264
 OUTGOING_FORMAT  = Format.JPG      # Valid: JPG or H264
+PROTOCOL_FORMAT  = 'UDP'           # Valid: UDP or TCP
 INFERENCE_ENABLED = bool(True)
 SHOW_FPS = bool(True)
 

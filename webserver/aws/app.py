@@ -37,19 +37,26 @@ def home(request: Request):
 '''
     Receive Video From Raspberry PI
 '''
-from constants import INCOMING_FORMAT, OUTGOING_FORMAT 
+from constants import INCOMING_FORMAT, OUTGOING_FORMAT, PROTOCOL_FORMAT
 from constants import frame_queues, INFERENCE_ENABLED
-from handler import handle_jpg_to_jpg, handle_jpg_to_h264, handle_h264_to_jpg, handle_h264_to_h264, ctx
+from handler import handle_jpg_to_jpg, handle_jpg_to_h264, handle_h264_to_jpg, handle_h264_to_h264, tcp_handle_jpg_to_jpg, ctx
 from inference import get_onnx_status
 
 @app.after_start
 async def start():
-    handlers = {
-        ('JPG', 'JPG'): handle_jpg_to_jpg.start,
-        ('JPG', 'H264'): handle_jpg_to_h264.start,
-        ('H264', 'JPG'): handle_h264_to_jpg.start,
-        ('H264', 'H264'): handle_h264_to_h264.start,
-    }
+    if PROTOCOL_FORMAT == 'TCP':
+        handlers = {
+            ('JPG', 'JPG'): tcp_handle_jpg_to_jpg.start,
+        }
+    elif PROTOCOL_FORMAT == 'UDP':
+        handlers = {
+            ('JPG', 'JPG'): handle_jpg_to_jpg.start,
+            ('JPG', 'H264'): handle_jpg_to_h264.start,
+            ('H264', 'JPG'): handle_h264_to_jpg.start,
+            ('H264', 'H264'): handle_h264_to_h264.start,
+        }
+    else:
+        raise ValueError("Invalid Protocol Format")
 
     assert get_onnx_status() or not INFERENCE_ENABLED, "Please install onnxruntime package if inference is enabled!"
 

@@ -219,7 +219,7 @@ MAX_PAYLOAD_SIZE = MAX_UDP_PACKET_SIZE - HEADER_SIZE - len(END_MARKER)
 
 async def send_frame(protocol: UDPSender, encoded_frame: bytes):
     global frame_id_counter
-    frame_id = frame_id_counter & 0xFFFF  # stay within 2 bytes
+    frame_id = frame_id_counter
     frame_id_b = (frame_id & 0xFFFFFF).to_bytes(3, 'big')  # Stay within 3 bytes (24-bit)
     frame_id_counter += 1
 
