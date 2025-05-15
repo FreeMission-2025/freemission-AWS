@@ -1,12 +1,30 @@
 import ctypes
-from multiprocessing import Lock, Semaphore, Value, shared_memory
+from dataclasses import dataclass
+from multiprocessing import Lock, Semaphore, Value, shared_memory, Array
+from multiprocessing.sharedctypes import Synchronized, SynchronizedArray
+from multiprocessing.synchronize import Lock as _Lock
+from multiprocessing.synchronize import Semaphore as _Semaphore
+from multiprocessing.synchronize import Semaphore as _Semaphore
+
 import numpy as np
+
+@dataclass
+class SyncObject:
+    frame_ids : SynchronizedArray
+    head      : Synchronized
+    tail      : Synchronized
+    stopping  : Synchronized
+    s_full    : _Semaphore
+    s_empty   : _Semaphore
+    p_lock    : _Lock
+    g_lock    : _Lock
+
 
 class QueueStoppedError(Exception):
     pass
 
 class ShmQueue:
-    def __init__(self, shape, dtype=np.uint8, capacity=60):
+    def __init__(self, shape, sync: SyncObject, dtype=np.uint8, capacity=120):
         self.shape = shape
         self.dtype = np.dtype(dtype)
         self.capacity = capacity
@@ -17,19 +35,20 @@ class ShmQueue:
             shared_memory.SharedMemory(create=True, size=self.frame_size * self.dtype.itemsize)
             for _ in range(capacity)
         ]
-
         self.names = [shm.name for shm in self.shms]
 
+        self.frame_ids = sync.frame_ids 
+
         # Circular queue pointers (head, tail)
-        self.head = Value(ctypes.c_int, 0)
-        self.tail = Value(ctypes.c_int, 0)
-        self.stopping = Value(ctypes.c_bool, False) 
+        self.head = sync.head
+        self.tail = sync.tail
+        self.stopping = sync.stopping
 
         # Queue slot availability semaphores
-        self.s_full = Semaphore(0)            # initially empty
-        self.s_empty = Semaphore(capacity)    # initially all empty
-        self.p_lock = Lock()
-        self.g_lock = Lock()
+        self.s_full  = sync.s_full 
+        self.s_empty = sync.s_empty
+        self.p_lock  = sync.p_lock
+        self.g_lock  = sync.g_lock
 
     def stop(self):
         with self.stopping.get_lock():
@@ -40,7 +59,7 @@ class ShmQueue:
             for _ in range(self.capacity):
                 self.s_full.release()  # Ensure .get() unblocks
 
-    def put(self, frame: np.ndarray):
+    def put(self, frame: np.ndarray, frame_id: int):
         # Block until there is space in the queue
         self.s_empty.acquire()
         
@@ -51,9 +70,12 @@ class ShmQueue:
         shm = self.shms[idx]
         buf = np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf)
         np.copyto(buf, frame)
+
+        self.frame_ids[idx] = frame_id
         self.s_full.release()  # Signal that there is an item available for consumption
 
-    def get(self) -> np.ndarray:
+
+    def get(self) -> tuple[np.ndarray, int]:
         # Block until there is an item in the queue
         self.s_full.acquire() 
 
@@ -68,8 +90,9 @@ class ShmQueue:
             
         shm = self.shms[idx]
         frame = np.ndarray(self.shape, dtype=self.dtype, buffer=shm.buf).copy()
+        frame_id = int(self.frame_ids[idx])
         self.s_empty.release()  # Signal that there is space available in the queue
-        return frame
+        return frame, frame_id
     
     def qsize(self) -> int:
         """Return the current number of frames in the queue."""
@@ -92,3 +115,4 @@ class ShmQueue:
                 shm.unlink()
             except FileNotFoundError:
                 pass
+        

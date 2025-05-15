@@ -1,4 +1,5 @@
 import asyncio
+from fractions import Fraction
 import os
 import struct
 import cv2
@@ -8,7 +9,7 @@ import numpy as np
 from .base import BaseUDP
 from inference import ShmQueue
 from utils.logger import Log
-from constants import FFMPEG_DIR
+from constants import FFMPEG_DIR, INFERENCE_ENABLED
 from utils.ffmpeg_helper import get_decoder, is_keyframe
 
 # Import ffmpeg
@@ -49,18 +50,29 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
             await self.__decode_to_frame(self.frame_queues, self.decode_queue, self.inference_enabled, self.loop, decoder_name, device_type)
         else:
             raise ValueError("Input Queue not supported. Pass correct type of input_queue in H264_TO_JPG_PROTOCOL")
-        
+    
+    @staticmethod
+    def __unpack_packet(packet_data: bytes):
+        timestamp_us, frame_type = struct.unpack(">QB",  packet_data[:9])
+        return timestamp_us, frame_type, packet_data[9:]   
+    
     @staticmethod
     async def __decode_to_shm(input_queue: ShmQueue, decode_queue: asyncio.Queue,  inference_enabled: bool, loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
         if not inference_enabled:
             raise ValueError("Inference must be enabled")
 
         decoder = get_decoder(decoder_name, device_type)
+        decoder = get_decoder(decoder_name, device_type)
+        time_base = (Fraction(1, 30)) * 1_000_000 
+
         while True:
             try:
                 encoded_packet_bytes = await decode_queue.get()
+                timestamp_us, frame_type, packet_data = H264_TO_JPG_PROTOCOL.__unpack_packet(encoded_packet_bytes)
 
-                packet = av.packet.Packet(encoded_packet_bytes)
+                packet = Packet(packet_data)
+                packet.is_keyframe = True if frame_type == 1 else False
+                packet.pts = round(timestamp_us / time_base)
                 decoded_video_frames = await loop.run_in_executor(None, lambda: decoder.decode(packet)) 
 
                 if len(decoded_video_frames) <= 0:
@@ -85,11 +97,17 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
             raise ValueError("Inference must be disabled")
         
         decoder = get_decoder(decoder_name, device_type)
+        time_base = (Fraction(1, 30)) * 1_000_000 
+
         while True:
             try:
                 encoded_packet_bytes = await decode_queue.get()
 
-                packet = av.packet.Packet(encoded_packet_bytes)
+                timestamp_us, frame_type, packet_data = H264_TO_JPG_PROTOCOL.__unpack_packet(encoded_packet_bytes)
+
+                packet = Packet(packet_data)
+                packet.is_keyframe = True if frame_type == 1 else False
+                packet.pts = round(timestamp_us / time_base)
                 decoded_video_frames = await loop.run_in_executor(None, lambda: decoder.decode(packet)) 
 
                 if len(decoded_video_frames) <= 0:
@@ -121,11 +139,12 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
 
 
 class H264_TO_H264_PROTOCOL(BaseUDP):
-    def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], decode_queue: asyncio.Queue | None,  inference_enabled = True):
+    def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], decode_queue: asyncio.Queue | None, ordered_queue: asyncio.Queue,  inference_enabled = True):
         super().__init__(inference_enabled)
         
         self.input_queue: Optional[ShmQueue] = None
         self.frame_queues: Optional[list[asyncio.Queue]] = None
+        self.ordered_queue = ordered_queue
 
         if self.inference_enabled:
             assert isinstance(input_queue, ShmQueue), \
@@ -140,44 +159,63 @@ class H264_TO_H264_PROTOCOL(BaseUDP):
                 "When inference is disabled, input_queue must be a list of asyncio.Queue instances."
             self.frame_queues = input_queue
         
-    def handle_received_frame(self, full_frame: bytes):
+    @staticmethod
+    def __unpack_packet(packet_data: bytes):
+        timestamp_us, frame_type = struct.unpack(">QB",  packet_data[:9])
+        return timestamp_us, frame_type, packet_data[9:]   
+    
+    def handle_received_frame(self, full_frame: bytes, frame_id):
+        '''
         if self.inference_enabled:
             if not self.decode_queue.full():
-                self.decode_queue.put_nowait(full_frame)
+                self.decode_queue.put_nowait((full_frame, frame_id))
         else:
             timestamp_us = int(time.time() * 1_000_000)
             frame_type = 1 if is_keyframe(full_frame) else 0
             packet_data = struct.pack(">QB", timestamp_us, frame_type) + full_frame
 
-            timestamped_frame = (time.time(), packet_data)
+            timestamped_frame = (time.time(), full_frame)
             for q in self.frame_queues:
                 if not q.full():
-                    q.put_nowait(timestamped_frame)
+                    q.put_nowait(timestamped_frame)        
+        '''
+        if not self.ordered_queue.full():
+            self.ordered_queue.put_nowait((frame_id, full_frame))
 
-    async def decode(self, decoder_name: str, device_type: str | None = None):
-        if not self.inference_enabled:
+    @staticmethod
+    async def decode(decode_queue: asyncio.Queue , input_queue:ShmQueue, decoder_name: str, device_type: str | None = None):
+        if not INFERENCE_ENABLED:
             raise ValueError("Inference must be enabled")
+
 
         decoder = get_decoder(decoder_name, device_type)
         Log.info(f"using {decoder.name}")
-        
+        time_base = (Fraction(1, 30)) * 1_000_000 
+        loop = asyncio.get_event_loop()
+
         while True:
             try:
-                encoded_packet_bytes = await self.decode_queue.get()
+                encoded_packet_bytes, frame_id = await decode_queue.get()
+                timestamp_us, frame_type, packet_data = H264_TO_H264_PROTOCOL.__unpack_packet(encoded_packet_bytes)
 
-                packet = av.packet.Packet(encoded_packet_bytes)
+                packet = Packet(packet_data)
+                packet.is_keyframe = True if frame_type == 1 else False
+                packet.pts = round(timestamp_us / time_base)
+
                 #start = time.perf_counter()
-                decoded_video_frames = await self.loop.run_in_executor(None, lambda: decoder.decode(packet)) 
+                decoded_video_frames = await loop.run_in_executor(None, lambda: decoder.decode(packet)) 
                 #print(f"dec: {time.perf_counter() - start:.4f}s")
 
                 if len(decoded_video_frames) <= 0:
                     continue
+
+                print(frame_id)
                 
                 decoded_video_frame = decoded_video_frames[0]
                 decoded_frame = decoded_video_frame.to_ndarray()
                 bgr_frame = cv2.cvtColor(decoded_frame, cv2.COLOR_YUV2BGR_I420)
 
-                await self.loop.run_in_executor(None, lambda: self.input_queue.put(bgr_frame))
+                await loop.run_in_executor(None, lambda: input_queue.put(bgr_frame, frame_id))
                 await asyncio.sleep(0)
             except asyncio.CancelledError:
                 break

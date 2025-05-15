@@ -12,6 +12,11 @@ frame_queues: List[Queue] = []
 
 decode_queue: Queue = Queue()
 encode_queue: Queue = Queue()
+ordered_queue: Queue = Queue()
+
+stream_status    = {"value": False}
+protocol_closed  = {"value": False}
+frame_dispatch_reset = {"value": False}
 
 class ServerContext:
     def __init__(self):
@@ -22,6 +27,8 @@ class ServerContext:
         self.consumer_task: Optional[Task] = None
         self.encode_task: Optional[Task] = None
         self.decode_task: Optional[Task] = None
+        self.ordering_task: Optional[Task] = None
+        self.protocol: any = None
 
     async def cleanup(self):
         """Cleans up resources safely and cancels running tasks."""
@@ -76,6 +83,18 @@ class ServerContext:
                 self.decode_task = None
         except Exception as e:
             Log.exception(f"Error at cleanup decode_task: {e}")
+
+        try:
+            if self.ordering_task:
+                self.ordering_task.cancel()
+                try:
+                    await self.ordering_task
+                except asyncio.CancelledError:
+                    pass
+                self.ordering_task = None
+        except Exception as e:
+            Log.exception(f"Error at cleanup ordering_task: {e}")
+
 
         try:
             if self.output_queue:

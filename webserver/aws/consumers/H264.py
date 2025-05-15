@@ -86,7 +86,7 @@ class H264_TO_H264_Consumer(BaseConsumer):
         Log.info(f"using {encoder.name}")
         while True:
             try:
-                frame_bgr = await self.encode_queue.get()
+                frame_bgr, _ = await self.encode_queue.get()
 
                 img_yuv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YUV_I420)
                 video_frame = av.VideoFrame.from_ndarray(img_yuv, format='yuv420p')
@@ -110,7 +110,7 @@ class H264_TO_H264_Consumer(BaseConsumer):
                 for q in self.frame_queue:
                     if not q.full():
                         q.put_nowait(timestamped_frame)
-                
+
                 if SHOW_FPS:
                     self.frame_count += 1
                     now = time.monotonic()

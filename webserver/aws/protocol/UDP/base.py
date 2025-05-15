@@ -7,6 +7,7 @@ from zlib import crc32
 from typing import Any, Dict, Set
 from utils.logger import Log
 import platform
+from constants import protocol_closed
 
 
 START_MARKER = b'\x01\x02\x7F\xED'
@@ -25,7 +26,17 @@ class BaseUDP(asyncio.DatagramProtocol):
         self.frames_in_progress = {}
         self._received_chunks: Dict[int, Set[int]] = {}
         self.loop = asyncio.get_event_loop()
-        self.timeout = 0.4
+        self.timeout = 0.5
+        self.is_stopped = False
+
+    def reset(self):
+        """Reset internal state to initial values."""
+        self.frames_in_progress.clear()  # Clear frames in progress
+        self._received_chunks.clear()  # Clear the received chunks map
+        Log.info("BaseUDP state has been reset.")
+    
+    def stop(self):
+        self.is_stopped = True
 
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
@@ -56,6 +67,9 @@ class BaseUDP(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]):
         try:
+            if self.is_stopped:
+                return
+            
             self.cleanup_old_frames(time.time())
 
             if len(data) < HEADER_SIZE + len(END_MARKER):
@@ -129,13 +143,13 @@ class BaseUDP(asyncio.DatagramProtocol):
                 # Cleanup
                 del self.frames_in_progress[frame_id]
 
-                self.handle_received_frame(full_frame)
+                self.handle_received_frame(full_frame, frame_id)
         except asyncio.CancelledError:
             return
         except Exception as e:
             Log.exception(f"Error in datagram_received: {e}")
     
-    def handle_received_frame(self, full_frame: bytes):
+    def handle_received_frame(self, full_frame: bytes, frame_id: int = -1):
         """Process the received frame and reassemble if all chunks are received"""
         raise NotImplementedError("handle_received_frame should be implemented by subclasses")
 
@@ -151,3 +165,8 @@ class BaseUDP(asyncio.DatagramProtocol):
 
     def connection_lost(self, exc: Exception):
         Log.info(f"Closing connection: {exc}")
+        self.reset()
+        protocol_closed['value'] = True
+        print(f"seting protocol closed to {protocol_closed['value']}")
+
+

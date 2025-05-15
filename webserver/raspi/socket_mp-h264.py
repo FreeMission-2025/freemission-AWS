@@ -1,9 +1,11 @@
 from collections import deque
+import heapq
 import platform
 import os
 import  queue
 import socket
 import time
+import requests
 
 system = platform.system()
 
@@ -61,15 +63,36 @@ ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 
 
 class UDPSender(asyncio.DatagramProtocol):
-    def __init__(self, window_size=207, timeout=0.05):
+    def __init__(self, window_size=30, timeout=400):
         self.transport     = None
         self._send_queue   = deque()         # (fid, idx, packet)
         self._pending      = {}              # (fid,idx) -> (packet, last_send_ms)
+        self._heap = []     # list of (next_retransmit_time_ms, fid, idx)
         self.window_size   = window_size
         self.timeout       = timeout
         self._window_task  = None
         self._resend_task  = None
+        self._heap_task    = None
+        self.loop          = asyncio.get_event_loop()
     
+    async def _heap_maintenance(self):
+        while True:
+            try:
+                await asyncio.sleep(30)
+                print("heap_")
+                now = time.time()
+                await self._compact_heap()
+                print(f"took {time.time() - now:.4f}")
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Error in _heap_maintenance: {e}")
+
+    async def _compact_heap(self):
+        self._heap = [(t, f, i) for (t, f, i) in self._heap if (f, i) in self._pending]
+        await self.loop.run_in_executor(None, lambda: heapq.heapify(self._heap))
+
     def connection_made(self, transport):
         self.transport = transport
         loop = asyncio.get_event_loop()
@@ -82,9 +105,14 @@ class UDPSender(asyncio.DatagramProtocol):
         new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
         print(f"new SO_sndbuf: {new_sndbuf} bytes")
 
-        self._window_task = loop.create_task(self._window_sender())
-        self._resend_task = loop.create_task(self._retransmitter())
-    
+        if self._window_task is None:
+            self._window_task = loop.create_task(self._window_sender())
+        if self._resend_task is None:
+            self._resend_task = loop.create_task(self._retransmitter())
+        if self._heap_task is None:
+            self._heap_task = loop.create_task(self._heap_maintenance())
+        
+
     def send(self, data: bytes):
         """Send via preconfigured EC2_UDP_IP/PORT."""
         if self.transport:
@@ -94,25 +122,49 @@ class UDPSender(asyncio.DatagramProtocol):
         """Call this from your send_frame() instead of directly sending."""
         self._send_queue.append((fid, idx, packet))
 
+
     async def _window_sender(self):
         while True:
-            # fill up to window_size
-            while len(self._pending) < self.window_size and self._send_queue:
-                fid, idx, packet = self._send_queue.popleft()
-                self.send(packet)
-                now = int(time.time() * 1000)
-                self._pending[(fid, idx)] = (packet, now)
-            await asyncio.sleep(0.001)  # 1 ms tick
+            try:
+                # fill up to window_size
+                while len(self._pending) < self.window_size and self._send_queue:
+                    fid, idx, packet = self._send_queue.popleft()
+                    self.send(packet)
+                    now = int(time.time() * 1000)
+                    self._pending[(fid, idx)] = (packet, now)
+                    heapq.heappush(self._heap, (now + self.timeout, fid, idx))
+                await asyncio.sleep(0.015)  # 1 ms tick
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"error at _window_sender {e}")
 
     async def _retransmitter(self):
         while True:
-            now = int(time.time() * 1000)
-            for key, (packet, last) in list(self._pending.items()):
-                if now - last >= self.timeout * 1000:
-                    self.send(packet)
-                    print(f"Retransmit frame={key[0]} chunk={key[1]}")
-                    self._pending[key] = (packet, now)
-            await asyncio.sleep(0.01)
+            try:
+                now = int(time.time() * 1000)
+
+                while self._heap:
+                    next_time, fid, idx = self._heap[0]
+                    if next_time > now:
+                        break
+
+                    heapq.heappop(self._heap)
+                    key = (fid, idx)
+                    if key in self._pending:
+                        packet, last_send_time = self._pending[key]
+                        elapsed = now - last_send_time
+                        print(f"Retransmit frame={key[0]} chunk={key[1]} elapsed={elapsed}ms")
+
+                        self.send(packet)
+                        self._pending[key] = (packet, now)  # update send time
+                        heapq.heappush(self._heap, (now + self.timeout, fid, idx))
+                
+                await asyncio.sleep(0.01)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"error at _retransmitter {e}")
 
     def datagram_received(self, data: bytes, addr):
         # single method handles both ACKs and normal datagrams
@@ -121,7 +173,7 @@ class UDPSender(asyncio.DatagramProtocol):
             key = (int.from_bytes(fid_bytes, 'big'), chunk_idx)
             if key in self._pending:
                 del self._pending[key]
-            print(f"ACK received: frame={key[0]} chunk={key[1]}")
+            #print(f"ACK received: frame={key[0]} chunk={key[1]}")
         else:
             # any other inbound message
             print(f"Received from {addr}: {data!r}")
@@ -131,6 +183,13 @@ class UDPSender(asyncio.DatagramProtocol):
 
     def connection_lost(self, exc):
         print("Connection closed")
+        if self._window_task:
+            self._window_task.cancel()  
+        if self._resend_task:
+            self._resend_task.cancel()
+        if self._heap_task:
+            self._heap_task.cancel()
+
 
 
 class VideoStream:
@@ -200,9 +259,14 @@ async def encode_video(frame_queue: multiprocessing.Queue, encode_queue: multipr
             if len(encoded_packet) == 0:
                 continue
 
-            encoded_packet_bytes = bytes(encoded_packet[0])
+            timestamp_us = int(encoded_packet[0].pts * encoded_packet[0].time_base * 1_000_000)
+            frame_type = 1 if encoded_packet[0].is_keyframe else 0
+
+            # Chunk Data: timestamp (8 byte) || frame_type (1 byte) || raw H.264  (N byte)
+            packet_data = struct.pack(">QB", timestamp_us, frame_type) + bytes(encoded_packet[0])
+
             if not encode_queue.full():
-                encode_queue.put_nowait(encoded_packet_bytes)
+                encode_queue.put_nowait(packet_data)
             else:
                 print("encode_queue full")
         except InterruptedError:
@@ -227,7 +291,7 @@ async def send_frame(protocol: UDPSender, encoded_frame: bytes):
     frame_id_counter += 1
 
     # Break frame into chunks
-    print(len(encoded_frame))
+    #print(len(encoded_frame))
     total_chunks = (len(encoded_frame) + MAX_PAYLOAD_SIZE - 1) // MAX_PAYLOAD_SIZE
 
     # Convert time to milliseconds and make sure it's an integer (for 4-byte format)
@@ -271,6 +335,18 @@ def async_encode(frame_queue: multiprocessing.Queue, encode_queue: multiprocessi
 async def main():
     if system == 'Windows':
         multiprocessing.set_start_method('spawn')
+
+    url = "http://localhost:80/reset_stream"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "message": "INIT_STREAM",
+        "auth": "BAYU"
+    }
+    response = requests.post(url, json=data, headers=headers)
+    print(response.status_code)
+    print(response.json())
+
+    await asyncio.sleep(5)
 
     frame_queue  = multiprocessing.Queue(120)
     encode_queue = multiprocessing.Queue(120)

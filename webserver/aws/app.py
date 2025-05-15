@@ -3,7 +3,7 @@ import base64
 from collections.abc import AsyncIterable
 from datetime import datetime
 import time
-from blacksheep import Application, Request, Response, StreamedContent, get, WebSocket, WebSocketDisconnectError, ws
+from blacksheep import Application, Request, Response, StreamedContent, get, WebSocket, WebSocketDisconnectError, json, post, ws
 from blacksheep.server.compression import GzipMiddleware
 from blacksheep.server.sse import ServerSentEvent
 from blacksheep.server.rendering.jinja2 import JinjaRenderer
@@ -11,7 +11,7 @@ from blacksheep.settings.html import html_settings
 from blacksheep.server.responses import view_async
 import os
 from utils.logger import Log
-from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP
+from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP, stream_status, Format
 
 app = Application(show_error_details=True)
 html_settings.use(JinjaRenderer(enable_async=True))
@@ -48,7 +48,7 @@ async def start():
         ('JPG', 'JPG'): handle_jpg_to_jpg,
         ('JPG', 'H264'): handle_jpg_to_h264,
         ('H264', 'JPG'): handle_h264_to_jpg,
-        ('H264', 'H264'): handle_h264_to_h264,
+        ('H264', 'H264'): handle_h264_to_h264.start,
     }
 
     assert get_onnx_status() or not INFERENCE_ENABLED, "Please install onnxruntime package if inference is enabled!"
@@ -64,6 +64,29 @@ async def start():
 async def cleanup_server():
     await asyncio.sleep(0.2)
     await ctx.cleanup()
+
+@post("/reset_stream")
+async def start_stream(request: Request):
+    if request.method != "POST":
+        return json({"error": True, "message": "Invalid Method"}, status=405)
+    
+    if INCOMING_FORMAT.value == Format.JPG.value:
+        return json({"error": False, "message": "STREAM CAN START"})
+    
+    body: dict   = await request.json()
+    message:str = body.get('message')
+    auth:str    = body.get('auth')
+
+    if message == 'INIT_STREAM' and auth == 'BAYU':
+        if not stream_status['value']:
+            stream_status['value'] = True
+            return json({"error": False, "message": "STREAM CAN START", "first_time": True})
+        else:
+            if OUTGOING_FORMAT.value == Format.H264.value:
+                await handle_h264_to_h264.reset()
+            return json({"error": False, "message": "STREAM CAN START", "first_time": False})
+
+    return json({"error": False})
 
 
 ''' 
