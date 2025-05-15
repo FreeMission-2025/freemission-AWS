@@ -22,7 +22,7 @@ class JPG_TO_JPG_PROTOCOL(BaseUDP):
                 "When inference is disabled, input_queue must be a list of asyncio.Queue instances."
             self.frame_queues = input_queue
 
-    def handle_received_frame(self, full_frame: bytes):
+    def handle_received_frame(self, full_frame: bytes, frame_id: int):
         # Decode frame
         np_arr = np.frombuffer(full_frame, np.uint8)
         frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -32,7 +32,7 @@ class JPG_TO_JPG_PROTOCOL(BaseUDP):
             return
         
         if self.inference_enabled:
-            self.loop.run_in_executor(None, lambda: self.input_queue.put(frame))
+            self.loop.run_in_executor(None, lambda: self.input_queue.put(frame, frame_id))
         else:
             _, buffer = cv2.imencode(".jpg", frame)
             frame_bytes = buffer.tobytes()
@@ -58,11 +58,11 @@ class JPG_TO_H264_PROTOCOL(BaseUDP):
                 "When inference is disabled, input_queue must be a asyncio.Queue instances."
             self.encode_queue = input_queue
 
-    def handle_received_frame(self, full_frame: bytes):
+    def handle_received_frame(self, full_frame: bytes, frame_id):
         if self.inference_enabled:
             np_arr = np.frombuffer(full_frame, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            self.loop.run_in_executor(None, lambda: self.input_queue.put(frame)) 
+            self.loop.run_in_executor(None, lambda: self.input_queue.put(frame, frame_id)) 
         else:
             if not self.encode_queue.full():
                 self.encode_queue.put_nowait(full_frame)

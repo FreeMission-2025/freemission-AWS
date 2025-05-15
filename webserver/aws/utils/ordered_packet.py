@@ -2,10 +2,12 @@ import asyncio
 import heapq
 import time
 from utils.logger import Log
-from constants import frame_dispatch_reset, INFERENCE_ENABLED
+from constants import frame_dispatch_reset, INFERENCE_ENABLED, OUTGOING_FORMAT, Format
 
 class OrderedPacketDispatcher:
     def __init__(self, input: asyncio.Queue, output: asyncio.Queue | list[asyncio.Queue], max_fps=30, timeout=0.4, poll_interval=0.03):
+        assert isinstance(input, asyncio.Queue), "input_queue must be a ShmQueue instance."
+        
         self.input = input
         self.max_fps = max_fps
         self.timeout = timeout
@@ -18,12 +20,18 @@ class OrderedPacketDispatcher:
 
         if INFERENCE_ENABLED:
             assert isinstance(output, asyncio.Queue), \
-                "When inference is enabled, output must be a ShmQueue instance."
+                "When inference is enabled, output must be a asyncio.Queue instance."
             self.output = output
         else:
-            assert isinstance(output, list) and all(isinstance(q, asyncio.Queue) for q in output), \
-                "When inference is disabled, input_queue must be a list of asyncio.Queue instances."
-            self.frame_queue = output
+            if OUTGOING_FORMAT.value == Format.H264.value:
+                assert isinstance(output, list) and all(isinstance(q, asyncio.Queue) for q in output), \
+                    "When inference is disabled and output is H264, input_queue must be a list of asyncio.Queue instances."
+                self.frame_queue = output
+            elif OUTGOING_FORMAT.value == Format.JPG.value:
+                "When inference is disabled and output is H264, input_queue must be a asyncio.Queue instances."
+                self.output = output
+
+
 
     def __reset(self):
         """Reset internal state to initial values."""
@@ -98,7 +106,7 @@ class OrderedPacketDispatcher:
                         frame_id, packet_data = heapq.heappop(self.buffer)
                         self.received_map.pop(frame_id, None)
 
-                        if INFERENCE_ENABLED:
+                        if INFERENCE_ENABLED or OUTGOING_FORMAT.value == Format.JPG.value:
                             if not self.output.full():
                                 self.output.put_nowait((packet_data, frame_id))
                         else:

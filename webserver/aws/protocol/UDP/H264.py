@@ -19,7 +19,7 @@ import av
 from av.packet import Packet
 
 class H264_TO_JPG_PROTOCOL(BaseUDP):
-    def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], decode_queue: asyncio.Queue,  inference_enabled = True):
+    def __init__(self, input_queue: ShmQueue | List[asyncio.Queue], decode_queue: asyncio.Queue, ordered_queue: asyncio.Queue,  inference_enabled = True):
         super().__init__(inference_enabled)
 
         self.input_queue: Optional[ShmQueue] = None
@@ -38,16 +38,32 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
             "decode_queue must be a asyncio.Queue instances."
         self.decode_queue = decode_queue
 
+        assert isinstance(ordered_queue, asyncio.Queue), "ordered_queue must be a asyncio.Queue instances."
+        self.ordered_queue = ordered_queue
 
-    def handle_received_frame(self, full_frame: bytes):
-        if not self.decode_queue.full():
-            self.decode_queue.put_nowait(full_frame)
+    def handle_received_frame(self, full_frame: bytes, frame_id):
+        if not self.ordered_queue.full():
+            self.ordered_queue.put_nowait((frame_id, full_frame))
 
-    async def decode(self, decoder_name: str, device_type: str | None = None):
-        if self.input_queue is not None:
-            await self.__decode_to_shm(self.input_queue, self.decode_queue, self.inference_enabled, self.loop, decoder_name, device_type)
-        elif self.frame_queues is not None:
-            await self.__decode_to_frame(self.frame_queues, self.decode_queue, self.inference_enabled, self.loop, decoder_name, device_type)
+    @staticmethod
+    async def decode(input_queue: ShmQueue | List[asyncio.Queue], decode_queue: asyncio.Queue, decoder_name: str, device_type: str | None = None):
+        if INFERENCE_ENABLED:
+            assert isinstance(input_queue, ShmQueue), \
+                "When inference is enabled, input_queue must be a ShmQueue instance."
+            input_queue = input_queue
+        else:
+            assert isinstance(input_queue, list) and all(isinstance(q, asyncio.Queue) for q in input_queue), \
+                "When inference is disabled, input_queue must be a list of asyncio.Queue instances."
+            frame_queues = input_queue
+
+        assert isinstance(decode_queue, asyncio.Queue), "decode_queue must be a asyncio.Queue instances."
+        
+        loop = asyncio.get_event_loop()
+
+        if isinstance(input_queue, ShmQueue):
+            await H264_TO_JPG_PROTOCOL.__decode_to_shm(input_queue, decode_queue, loop, decoder_name, device_type)
+        elif isinstance(input_queue, list):
+            await H264_TO_JPG_PROTOCOL.__decode_to_frame(frame_queues, decode_queue, loop, decoder_name, device_type)
         else:
             raise ValueError("Input Queue not supported. Pass correct type of input_queue in H264_TO_JPG_PROTOCOL")
     
@@ -57,8 +73,8 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
         return timestamp_us, frame_type, packet_data[9:]   
     
     @staticmethod
-    async def __decode_to_shm(input_queue: ShmQueue, decode_queue: asyncio.Queue,  inference_enabled: bool, loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
-        if not inference_enabled:
+    async def __decode_to_shm(input_queue: ShmQueue, decode_queue: asyncio.Queue,  loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
+        if not INFERENCE_ENABLED:
             raise ValueError("Inference must be enabled")
 
         decoder = get_decoder(decoder_name, device_type)
@@ -67,7 +83,7 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
 
         while True:
             try:
-                encoded_packet_bytes = await decode_queue.get()
+                encoded_packet_bytes, frame_id = await decode_queue.get()
                 timestamp_us, frame_type, packet_data = H264_TO_JPG_PROTOCOL.__unpack_packet(encoded_packet_bytes)
 
                 packet = Packet(packet_data)
@@ -82,7 +98,7 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
                 decoded_frame = decoded_video_frame.to_ndarray()
                 bgr_frame = cv2.cvtColor(decoded_frame, cv2.COLOR_YUV2BGR_I420)
 
-                await loop.run_in_executor(None, lambda: input_queue.put(bgr_frame))
+                await loop.run_in_executor(None, lambda: input_queue.put(bgr_frame, frame_id))
                 #await asyncio.sleep(0)
             except asyncio.CancelledError:
                 break
@@ -92,8 +108,8 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
                     Log.exception(f"error at decode_video: {e}")
 
     @staticmethod
-    async def __decode_to_frame(frame_queues: List[asyncio.Queue], decode_queue: asyncio.Queue,  inference_enabled: bool, loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
-        if inference_enabled:
+    async def __decode_to_frame(frame_queues: List[asyncio.Queue], decode_queue: asyncio.Queue,  loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
+        if INFERENCE_ENABLED:
             raise ValueError("Inference must be disabled")
         
         decoder = get_decoder(decoder_name, device_type)
@@ -101,7 +117,7 @@ class H264_TO_JPG_PROTOCOL(BaseUDP):
 
         while True:
             try:
-                encoded_packet_bytes = await decode_queue.get()
+                encoded_packet_bytes, _ = await decode_queue.get()
 
                 timestamp_us, frame_type, packet_data = H264_TO_JPG_PROTOCOL.__unpack_packet(encoded_packet_bytes)
 
@@ -158,7 +174,9 @@ class H264_TO_H264_PROTOCOL(BaseUDP):
             assert isinstance(input_queue, list) and all(isinstance(q, asyncio.Queue) for q in input_queue), \
                 "When inference is disabled, input_queue must be a list of asyncio.Queue instances."
             self.frame_queues = input_queue
-        
+
+        assert isinstance(ordered_queue, asyncio.Queue), "ordered_queue must be a asyncio.Queue instances."
+
     @staticmethod
     def __unpack_packet(packet_data: bytes):
         timestamp_us, frame_type = struct.unpack(">QB",  packet_data[:9])
@@ -183,7 +201,10 @@ class H264_TO_H264_PROTOCOL(BaseUDP):
             self.ordered_queue.put_nowait((frame_id, full_frame))
 
     @staticmethod
-    async def decode(decode_queue: asyncio.Queue , input_queue:ShmQueue, decoder_name: str, device_type: str | None = None):
+    async def decode(decode_queue: asyncio.Queue , input_queue: ShmQueue, decoder_name: str, device_type: str | None = None):
+        assert isinstance(decode_queue, asyncio.Queue), "decode_queue must be a asyncio.Queue instances."
+        assert isinstance(input_queue, ShmQueue), "When inference is enabled, input_queue must be a ShmQueue instance."
+
         if not INFERENCE_ENABLED:
             raise ValueError("Inference must be enabled")
 

@@ -92,28 +92,61 @@ async def handle_jpg_to_h264():
 
     ctx.encode_task  = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))
 
-async def handle_h264_to_jpg():
-    loop = asyncio.get_event_loop()
-    protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+class handle_h264_to_jpg():
+    @staticmethod
+    async def start():
+        loop = asyncio.get_event_loop()
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
 
-    ctx.transport, protocol = await loop.create_datagram_endpoint(
-        lambda: H264_TO_JPG_PROTOCOL(protocol_input, decode_queue, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_JPG.value)
-    )
-    print(f"UDP listener (Video JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_JPG.value}")
+        ctx.transport, protocol = await loop.create_datagram_endpoint(
+            lambda: H264_TO_JPG_PROTOCOL(protocol_input, decode_queue, ordered_queue, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_JPG.value)
+        )
+        print(f"UDP listener (Video JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_JPG.value}")
 
-    if INFERENCE_ENABLED:
-        kwargs = {
-            "model_path": model_path,
-            "input_queue": ctx.input_queue,
-            "output_queue": ctx.output_queue,
-        }
-        ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
-        ctx.infer_process.start()
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": ctx.input_queue,
+                "output_queue": ctx.output_queue,
+            }
+            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            ctx.infer_process.start()
 
-        consumer = H264_TO_JPG_Consumer(ctx.output_queue, frame_queues)
-        ctx.consumer_task = asyncio.create_task(consumer.handler())
+            consumer = H264_TO_JPG_Consumer(ctx.output_queue, frame_queues)
+            ctx.consumer_task = asyncio.create_task(consumer.handler())
+        
+        ctx.protocol = protocol
+        ctx.decode_task = asyncio.create_task(protocol.decode(protocol_input, decode_queue, decoder.name, decoder.device_type))
+        ctx.ordering_task = asyncio.create_task(OrderedPacketDispatcher(ordered_queue, decode_queue).run())
     
-    ctx.decode_task = asyncio.create_task(protocol.decode(decoder.name, decoder.device_type))
+    @staticmethod
+    async def reset():
+        loop = asyncio.get_event_loop()
+        if ctx.protocol:
+            ctx.protocol.stop()
+            await asyncio.sleep(0.2)
+            ctx.transport.abort()
+            
+            while not protocol_closed['value']:
+                print(f"prtocol_closed: {protocol_closed['value']}")
+                await asyncio.sleep(0.5)
+
+            ctx.protocol = None
+            ctx.transport = None
+
+            frame_dispatch_reset['value'] = True
+            while frame_dispatch_reset['value']:
+                await asyncio.sleep(0.5)
+
+        await asyncio.sleep(0.5)
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+        ctx.transport, ctx.protocol = await loop.create_datagram_endpoint(
+            lambda: H264_TO_JPG_PROTOCOL(protocol_input, decode_queue, ordered_queue, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_H264_TO_JPG.value)
+        )
+        print(f"UDP listener (Video JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_H264_TO_JPG.value}")
+
+        return True
+
 
 class handle_h264_to_h264():
     @staticmethod
@@ -137,7 +170,7 @@ class handle_h264_to_h264():
             ctx.infer_process.start()
 
             ctx.consumer_task = asyncio.create_task(consumer.handler())
-            ctx.decode_task = asyncio.create_task(protocol.decode(decode_queue, ctx.input_queue, decoder.name, decoder.device_type))
+            ctx.decode_task = asyncio.create_task(protocol.decode(decode_queue, protocol_input, decoder.name, decoder.device_type))
             ctx.encode_task = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))
             ctx.protocol = protocol
             ctx.ordering_task = asyncio.create_task(OrderedPacketDispatcher(ordered_queue, decode_queue).run())

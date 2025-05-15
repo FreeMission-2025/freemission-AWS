@@ -47,7 +47,7 @@ async def start():
     handlers = {
         ('JPG', 'JPG'): handle_jpg_to_jpg,
         ('JPG', 'H264'): handle_jpg_to_h264,
-        ('H264', 'JPG'): handle_h264_to_jpg,
+        ('H264', 'JPG'): handle_h264_to_jpg.start,
         ('H264', 'H264'): handle_h264_to_h264.start,
     }
 
@@ -84,6 +84,8 @@ async def start_stream(request: Request):
         else:
             if OUTGOING_FORMAT.value == Format.H264.value:
                 await handle_h264_to_h264.reset()
+            elif OUTGOING_FORMAT.value == Format.JPG.value:
+                await handle_h264_to_jpg.reset()
             return json({"error": False, "message": "STREAM CAN START", "first_time": False})
 
     return json({"error": False})
