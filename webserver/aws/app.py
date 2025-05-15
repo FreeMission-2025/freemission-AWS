@@ -45,7 +45,7 @@ from inference import get_onnx_status
 @app.after_start
 async def start():
     handlers = {
-        ('JPG', 'JPG'): handle_jpg_to_jpg,
+        ('JPG', 'JPG'): handle_jpg_to_jpg.start,
         ('JPG', 'H264'): handle_jpg_to_h264.start,
         ('H264', 'JPG'): handle_h264_to_jpg.start,
         ('H264', 'H264'): handle_h264_to_h264.start,
@@ -85,7 +85,9 @@ async def start_stream(request: Request):
                 await handle_h264_to_jpg.reset()
             elif INCOMING_FORMAT.value == Format.JPG.value and OUTGOING_FORMAT.value == Format.H264.value:
                 await handle_jpg_to_h264.reset()
-                print("resetting")
+            elif INCOMING_FORMAT.value == Format.JPG.value and OUTGOING_FORMAT.value == Format.JPG.value:
+                await handle_jpg_to_jpg.reset()
+                print("wad")
 
             return json({"error": False, "message": "STREAM CAN START", "first_time": False})
 

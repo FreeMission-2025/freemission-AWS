@@ -50,25 +50,52 @@ def inference(**kwargs):
     onnx = ObjectDetection(**kwargs)
     onnx.run()
 
-async def handle_jpg_to_jpg(): 
-    loop = asyncio.get_event_loop()
-    protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
-    ctx.transport, protocol = await loop.create_datagram_endpoint(
-        lambda: JPG_TO_JPG_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
-    )
-    print(f"UDP listener (JPG to JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
-    
-    if INFERENCE_ENABLED:
-        kwargs = {
-            "model_path": model_path,
-            "input_queue": ctx.input_queue,
-            "output_queue": ctx.output_queue,
-        }
-        ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
-        ctx.infer_process.start()
+class handle_jpg_to_jpg(): 
+    @staticmethod
+    async def start():
+        loop = asyncio.get_event_loop()
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+        ctx.transport, protocol = await loop.create_datagram_endpoint(
+            lambda: JPG_TO_JPG_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
+        )
+        print(f"UDP listener (JPG to JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
+        
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": ctx.input_queue,
+                "output_queue": ctx.output_queue,
+            }
+            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            ctx.infer_process.start()
 
-        consumer = JPG_TO_JPG_Consumer(ctx.output_queue, frame_queues)
-        ctx.consumer_task = asyncio.create_task(consumer.handler())
+            consumer = JPG_TO_JPG_Consumer(ctx.output_queue, frame_queues)
+            ctx.consumer_task = asyncio.create_task(consumer.handler())
+            
+        ctx.protocol = protocol
+        
+    
+    @staticmethod
+    async def reset():
+        loop = asyncio.get_event_loop()
+        if ctx.protocol:
+            ctx.protocol.stop()
+            await asyncio.sleep(0.2)
+            ctx.transport.abort()
+            
+            while not protocol_closed['value']:
+                print(f"prtocol_closed: {protocol_closed['value']}")
+                await asyncio.sleep(0.5)
+
+            ctx.protocol = None
+            ctx.transport = None
+
+        await asyncio.sleep(0.5)
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+        ctx.transport, ctx.protocol = await loop.create_datagram_endpoint(
+            lambda: JPG_TO_JPG_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_JPG.value)
+        )
+        print(f"UDP listener (JPG to JPG) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_JPG.value}")
 
 class handle_jpg_to_h264(): 
     @staticmethod
