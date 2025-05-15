@@ -46,7 +46,7 @@ from inference import get_onnx_status
 async def start():
     handlers = {
         ('JPG', 'JPG'): handle_jpg_to_jpg,
-        ('JPG', 'H264'): handle_jpg_to_h264,
+        ('JPG', 'H264'): handle_jpg_to_h264.start,
         ('H264', 'JPG'): handle_h264_to_jpg.start,
         ('H264', 'H264'): handle_h264_to_h264.start,
     }
@@ -70,9 +70,6 @@ async def start_stream(request: Request):
     if request.method != "POST":
         return json({"error": True, "message": "Invalid Method"}, status=405)
     
-    if INCOMING_FORMAT.value == Format.JPG.value:
-        return json({"error": False, "message": "STREAM CAN START"})
-    
     body: dict   = await request.json()
     message:str = body.get('message')
     auth:str    = body.get('auth')
@@ -82,10 +79,14 @@ async def start_stream(request: Request):
             stream_status['value'] = True
             return json({"error": False, "message": "STREAM CAN START", "first_time": True})
         else:
-            if OUTGOING_FORMAT.value == Format.H264.value:
+            if INCOMING_FORMAT.value == Format.H264.value and OUTGOING_FORMAT.value == Format.H264.value:
                 await handle_h264_to_h264.reset()
-            elif OUTGOING_FORMAT.value == Format.JPG.value:
+            elif INCOMING_FORMAT.value == Format.H264.value and OUTGOING_FORMAT.value == Format.JPG.value:
                 await handle_h264_to_jpg.reset()
+            elif INCOMING_FORMAT.value == Format.JPG.value and OUTGOING_FORMAT.value == Format.H264.value:
+                await handle_jpg_to_h264.reset()
+                print("resetting")
+
             return json({"error": False, "message": "STREAM CAN START", "first_time": False})
 
     return json({"error": False})

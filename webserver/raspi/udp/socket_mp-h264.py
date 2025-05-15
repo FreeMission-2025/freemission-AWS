@@ -63,7 +63,7 @@ ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 
 
 class UDPSender(asyncio.DatagramProtocol):
-    def __init__(self, window_size=30, timeout=400):
+    def __init__(self, window_size=30, timeout=100):
         self.transport     = None
         self._send_queue   = deque()         # (fid, idx, packet)
         self._pending      = {}              # (fid,idx) -> (packet, last_send_ms)

@@ -10,8 +10,9 @@ from utils.public_ip import get_public_ip
 frame_queues: List[Queue] = []
 """List of asyncio frame queues, one for each connected client on video_stream endpoint"""
 
-decode_queue: Queue = Queue()
-encode_queue: Queue = Queue()
+decode_queue: Queue  = Queue()
+encode_queue: Queue  = Queue()
+jpg_queue: Queue     = Queue()
 ordered_queue: Queue = Queue()
 
 stream_status    = {"value": False}
@@ -28,6 +29,7 @@ class ServerContext:
         self.encode_task: Optional[Task] = None
         self.decode_task: Optional[Task] = None
         self.ordering_task: Optional[Task] = None
+        self.jpg_producer_task: Optional[Task] = None
         self.protocol: any = None
 
     async def cleanup(self):
@@ -85,6 +87,17 @@ class ServerContext:
             Log.exception(f"Error at cleanup decode_task: {e}")
 
         try:
+            if self.jpg_producer_task:
+                self.jpg_producer_task.cancel()
+                try:
+                    await self.jpg_producer_task
+                except asyncio.CancelledError:
+                    pass
+                self.jpg_producer_task = None
+        except Exception as e:
+            Log.exception(f"Error at cleanup jpg_producer_task: {e}")
+
+        try:
             if self.ordering_task:
                 self.ordering_task.cancel()
                 try:
@@ -94,7 +107,6 @@ class ServerContext:
                 self.ordering_task = None
         except Exception as e:
             Log.exception(f"Error at cleanup ordering_task: {e}")
-
 
         try:
             if self.output_queue:
@@ -131,9 +143,9 @@ class Format(Enum):
     H264 = "H264"
 
 FFMPEG_DIR       = r"C:\ffmpeg\bin"
-INCOMING_FORMAT  = Format.H264      # Valid: JPG or H264
+INCOMING_FORMAT  = Format.JPG      # Valid: JPG or H264
 OUTGOING_FORMAT  = Format.H264      # Valid: JPG or H264
-INFERENCE_ENABLED = bool(True)
+INFERENCE_ENABLED = bool(False)
 SHOW_FPS = bool(True)
 
 encoder = base_codec('libx264')

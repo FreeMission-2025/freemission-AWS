@@ -2,7 +2,7 @@ import asyncio
 import heapq
 import time
 from utils.logger import Log
-from constants import frame_dispatch_reset, INFERENCE_ENABLED, OUTGOING_FORMAT, Format
+from constants import frame_dispatch_reset, INFERENCE_ENABLED, INCOMING_FORMAT, OUTGOING_FORMAT, Format
 
 class OrderedPacketDispatcher:
     def __init__(self, input: asyncio.Queue, output: asyncio.Queue | list[asyncio.Queue], max_fps=30, timeout=0.4, poll_interval=0.03):
@@ -23,15 +23,18 @@ class OrderedPacketDispatcher:
                 "When inference is enabled, output must be a asyncio.Queue instance."
             self.output = output
         else:
-            if OUTGOING_FORMAT.value == Format.H264.value:
+            if INCOMING_FORMAT.value == Format.H264.value and OUTGOING_FORMAT.value == Format.H264.value:
                 assert isinstance(output, list) and all(isinstance(q, asyncio.Queue) for q in output), \
-                    "When inference is disabled and output is H264, input_queue must be a list of asyncio.Queue instances."
+                    "When inference is disabled and (H264 TO H264), input_queue must be a list of asyncio.Queue instances."
                 self.frame_queue = output
-            elif OUTGOING_FORMAT.value == Format.JPG.value:
-                "When inference is disabled and output is H264, input_queue must be a asyncio.Queue instances."
+            elif INCOMING_FORMAT.value == Format.H264.value and OUTGOING_FORMAT.value == Format.JPG.value:
+                assert isinstance(output, asyncio.Queue), "When inference is disabled and output (H264 TO JPG), input_queue must be a asyncio.Queue instances."
                 self.output = output
-
-
+            elif INCOMING_FORMAT.value == Format.JPG.value and OUTGOING_FORMAT.value == Format.H264.value:
+                assert isinstance(output, asyncio.Queue), "When inference is disabled and output (JPG TO H264), input_queue must be a asyncio.Queue instances."
+                self.output = output
+            else:
+                self.output = output
 
     def __reset(self):
         """Reset internal state to initial values."""
@@ -106,7 +109,7 @@ class OrderedPacketDispatcher:
                         frame_id, packet_data = heapq.heappop(self.buffer)
                         self.received_map.pop(frame_id, None)
 
-                        if INFERENCE_ENABLED or OUTGOING_FORMAT.value == Format.JPG.value:
+                        if INFERENCE_ENABLED or OUTGOING_FORMAT.value == Format.JPG.value or INCOMING_FORMAT.value == Format.JPG.value:
                             if not self.output.full():
                                 self.output.put_nowait((packet_data, frame_id))
                         else:

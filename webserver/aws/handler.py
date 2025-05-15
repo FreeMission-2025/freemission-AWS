@@ -5,7 +5,7 @@ import multiprocessing
 from multiprocessing import Lock, Semaphore, Value, Array
 import os
 import pickle
-from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, EC2Port, encoder, decoder, ordered_queue, protocol_closed, frame_dispatch_reset
+from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, jpg_queue, EC2Port, encoder, decoder, ordered_queue, protocol_closed, frame_dispatch_reset
 from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL
 from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer, H264_TO_JPG_Consumer, H264_TO_H264_Consumer
 from inference import ShmQueue, ObjectDetection, SyncObject
@@ -70,27 +70,63 @@ async def handle_jpg_to_jpg():
         consumer = JPG_TO_JPG_Consumer(ctx.output_queue, frame_queues)
         ctx.consumer_task = asyncio.create_task(consumer.handler())
 
-async def handle_jpg_to_h264(): 
-    loop = asyncio.get_event_loop()
-    protocol_input = ctx.input_queue if INFERENCE_ENABLED else encode_queue
-    ctx.transport, protocol = await loop.create_datagram_endpoint(
-        lambda: JPG_TO_H264_PROTOCOL(protocol_input, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_H264.value)
-    )
-    print(f"UDP listener (JPG to h264) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_H264.value}")
-    
+class handle_jpg_to_h264(): 
+    @staticmethod
+    async def start():
+        loop = asyncio.get_event_loop()
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else encode_queue
+        ctx.transport, protocol = await loop.create_datagram_endpoint(
+            lambda: JPG_TO_H264_PROTOCOL(protocol_input, ordered_queue, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_H264.value)
+        )
+        print(f"UDP listener (JPG to h264) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_H264.value}")
+        
 
-    consumer = JPG_TO_H264_Consumer(ctx.output_queue,frame_queues,encode_queue)
-    if INFERENCE_ENABLED:
-        kwargs = {
-            "model_path": model_path,
-            "input_queue": ctx.input_queue,
-            "output_queue": ctx.output_queue,
-        }
-        ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
-        ctx.infer_process.start()
-        ctx.consumer_task = asyncio.create_task(consumer.handler())
+        consumer = JPG_TO_H264_Consumer(ctx.output_queue,frame_queues,encode_queue)
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": ctx.input_queue,
+                "output_queue": ctx.output_queue,
+            }
+            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            ctx.infer_process.start()
+            ctx.consumer_task = asyncio.create_task(consumer.handler())
+            ctx.jpg_producer_task = asyncio.create_task(JPG_TO_H264_PROTOCOL._producer(jpg_queue, protocol_input))
+            ctx.protocol = protocol
+            ctx.ordering_task = asyncio.create_task(OrderedPacketDispatcher(ordered_queue, jpg_queue).run())
+        else:
+            ctx.protocol = protocol
+            ctx.ordering_task = asyncio.create_task(OrderedPacketDispatcher(ordered_queue, encode_queue).run())
 
-    ctx.encode_task  = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))
+        ctx.encode_task  = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))
+
+    @staticmethod
+    async def reset():
+        loop = asyncio.get_event_loop()
+        if ctx.protocol:
+            ctx.protocol.stop()
+            await asyncio.sleep(0.2)
+            ctx.transport.abort()
+            
+            while not protocol_closed['value']:
+                print(f"prtocol_closed: {protocol_closed['value']}")
+                await asyncio.sleep(0.5)
+
+            ctx.protocol = None
+            ctx.transport = None
+
+            frame_dispatch_reset['value'] = True
+            while frame_dispatch_reset['value']:
+                await asyncio.sleep(0.5)
+
+        await asyncio.sleep(0.5)
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else encode_queue
+        ctx.transport, ctx.protocol = await loop.create_datagram_endpoint(
+            lambda: JPG_TO_H264_PROTOCOL(protocol_input, ordered_queue, INFERENCE_ENABLED), local_addr=('0.0.0.0', EC2Port.UDP_PORT_JPG_TO_H264.value)
+        )
+        print(f"UDP listener (JPG to h264) started on 0.0.0.0:{EC2Port.UDP_PORT_JPG_TO_H264.value}")
+
+        return True
 
 class handle_h264_to_jpg():
     @staticmethod
