@@ -6,7 +6,7 @@ from multiprocessing import Lock, Semaphore, Value, Array
 import os
 import pickle
 from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, jpg_queue, EC2Port, encoder, decoder, ordered_queue, protocol_closed, frame_dispatch_reset
-from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL, JPG_TO_JPG_TCP
+from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL, JPG_TO_JPG_TCP, JPG_TO_H264_TCP, H264_TO_JPG_TCP, H264_TO_H264_TCP
 from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer, H264_TO_JPG_Consumer, H264_TO_H264_Consumer
 from inference import ShmQueue, ObjectDetection, SyncObject
 from utils.ordered_packet import OrderedPacketDispatcher
@@ -75,7 +75,78 @@ class tcp_handle_jpg_to_jpg():
 
             consumer = JPG_TO_JPG_Consumer(ctx.output_queue, frame_queues)
             ctx.consumer_task = asyncio.create_task(consumer.handler())
-            
+
+class tcp_handle_jpg_to_h264(): 
+    @staticmethod
+    async def start():
+        loop = asyncio.get_event_loop()
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else encode_queue
+        ctx.server = await loop.create_server(
+            lambda: JPG_TO_H264_TCP(protocol_input), host='0.0.0.0', port=EC2Port.TCP_PORT_JPG_TO_H264.value)
+        print(f"TCP listener (JPG to h264) started on 0.0.0.0:{EC2Port.TCP_PORT_JPG_TO_H264.value}")
+        
+        consumer = JPG_TO_H264_Consumer(ctx.output_queue,frame_queues,encode_queue)
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": ctx.input_queue,
+                "output_queue": ctx.output_queue,
+            }
+            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            ctx.infer_process.start()
+            ctx.consumer_task = asyncio.create_task(consumer.handler())
+
+        ctx.encode_task  = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))
+
+class tcp_handle_h264_to_jpg():
+    @staticmethod
+    async def start():
+        loop = asyncio.get_event_loop()
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+
+        ctx.server = await loop.create_server(
+            lambda: H264_TO_JPG_TCP(decode_queue), host='0.0.0.0', port=EC2Port.TCP_PORT_H264_TO_JPG.value)
+        print(f"TCP listener (H264 to JPG) started on 0.0.0.0:{EC2Port.TCP_PORT_H264_TO_JPG.value}")
+
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": ctx.input_queue,
+                "output_queue": ctx.output_queue,
+            }
+            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            ctx.infer_process.start()
+
+            consumer = H264_TO_JPG_Consumer(ctx.output_queue, frame_queues)
+            ctx.consumer_task = asyncio.create_task(consumer.handler())
+        
+        ctx.decode_task = asyncio.create_task(H264_TO_JPG_TCP.decode(protocol_input, decode_queue, decoder.name, decoder.device_type))
+
+class tcp_handle_h264_to_h264():
+    @staticmethod
+    async def start():
+        loop = asyncio.get_event_loop()
+        protocol_input = ctx.input_queue if INFERENCE_ENABLED else frame_queues
+
+        ctx.server = await loop.create_server(
+            lambda: H264_TO_H264_TCP(protocol_input, decode_queue),host='0.0.0.0', port=EC2Port.TCP_PORT_H264_TO_H264.value)
+        
+        print(f"TCP listener (H264 TO H264) started on 0.0.0.0:{EC2Port.TCP_PORT_H264_TO_H264.value}")
+
+        consumer = H264_TO_H264_Consumer(ctx.output_queue, frame_queues, encode_queue)
+        if INFERENCE_ENABLED:
+            kwargs = {
+                "model_path": model_path,
+                "input_queue": ctx.input_queue,
+                "output_queue": ctx.output_queue,
+            }
+            ctx.infer_process = multiprocessing.Process(target=inference, kwargs=kwargs)
+            ctx.infer_process.start()
+
+            ctx.consumer_task = asyncio.create_task(consumer.handler())
+            ctx.decode_task = asyncio.create_task(H264_TO_H264_TCP.decode(decode_queue, protocol_input, decoder.name, decoder.device_type))
+            ctx.encode_task = asyncio.create_task(consumer.encode(encoder.name, encoder.device_type))
+
 '''
     UDP
 '''

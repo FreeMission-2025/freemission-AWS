@@ -24,16 +24,12 @@ import cv2
 import contextlib
 from zlib import crc32
 ''' 
-    UDP Configuration
+    TCP Configuration
 '''
-EC2_UDP_IP = "127.0.0.1"
-EC2_UDP_PORT = 8085
-MAX_UDP_PACKET_SIZE = 1450  # Max safe UDP payload size
-CAMERA_INDEX = 0             # Default camera index
+EC2_TCP_IP = "127.0.0.1"
+EC2_TCP_PORT = 8087
+CAMERA_INDEX = 0
 
-ACK_MARKER    = b'\x05\x06\x7F\xED'
-ACK_FORMAT    = "!4s 3s B"       # | 4-byte marker | 3-byte frame_id | 1-byte chunk_index |
-ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 
 ''' Global Variable '''
 frame_id_counter = 0
@@ -83,29 +79,30 @@ class VideoStream:
 START_MARKER = b'\x01\x02\x7F\xED'  # 4-byte start marker
 END_MARKER = b'\x03\x04\x7F\xED'    # 4-byte end marker
 
-# Updated header format: 4s (marker), I (Time Stamp), 3s (frame_id), B (total_chunks), B (chunk_index), H (chunk_length), I (checksum)
-HEADER_FORMAT = "!4s I 3s B B H I"
+# Updated header format: 4s (marker), I (Time Stamp), 3s (frame_id), I (chunk_length), I (checksum)
+HEADER_FORMAT = "!4s I 3s I I"
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
-MAX_PAYLOAD_SIZE = MAX_UDP_PACKET_SIZE - HEADER_SIZE - len(END_MARKER)
 
+ACK_MARKER    = b'\x05\x06\x7F\xED'
+ACK_FORMAT    = "!4s 3s"       # | 4-byte marker | 3-byte frame_id
+ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 
 class protocol:
     def __init__(self):
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
-
 tcp = protocol()
 
 async def message_received():
     while True:
         try:
-            data = await tcp.reader.read(8)
+            data = await tcp.reader.read(7)
 
             # single method handles both ACKs and normal datagrams
             if len(data) == ACK_SIZE and data.startswith(ACK_MARKER):
-                _, fid_bytes, chunk_idx = struct.unpack(ACK_FORMAT, data)
-                key = (int.from_bytes(fid_bytes, 'big'), chunk_idx)
-                print(f"ACK received: frame={key[0]} chunk={key[1]}")
+                _, fid_bytes = struct.unpack(ACK_FORMAT, data)
+                key = int.from_bytes(fid_bytes, 'big')
+                print(f"ACK received: frame={key}")
             else:
                 print(f"Received : {data.decode()!r}")
             await asyncio.sleep(0)
@@ -114,22 +111,18 @@ async def message_received():
         except Exception as e:
             print(f"error at videmessage_receivedo_stream: {e}")
 
-
 async def send_frame(encoded_frame: bytes):
     global frame_id_counter
     frame_id = frame_id_counter
     frame_id_b = (frame_id & 0xFFFFFF).to_bytes(3, 'big')  # Stay within 3 bytes (24-bit)
     frame_id_counter += 1
 
-    # Break frame into chunks
     chunk_length = len(encoded_frame)
     time_ms = int(time.time() * 1000) % 0x100000000
     checksum = crc32(encoded_frame)
-    chunk_index = 0
-    total_chunk = 1
 
-    # | START_MARKER (4 bytes) | timestamp (4 bytes) | frame_id (3 bytes) | total_chunks (1 byte) | chunk_index (1 byte) | chunk_length (2 bytes) | crc32_checksum (4 bytes) |
-    header = struct.pack(HEADER_FORMAT, START_MARKER, time_ms, frame_id_b, total_chunk, chunk_index, chunk_length, checksum)
+    # | START_MARKER (4 bytes) | timestamp (4 bytes) | frame_id (3 bytes) | chunk_length (4 bytes) | crc32_checksum (4 bytes) |
+    header = struct.pack(HEADER_FORMAT, START_MARKER, time_ms, frame_id_b, chunk_length, checksum)
 
     # Send the header + chunk + END_MARKER
     tcp.writer.write(header + encoded_frame + END_MARKER)
@@ -141,7 +134,7 @@ async def main():
 
     capture_task = asyncio.create_task(vs.start())
 
-    tcp.reader, tcp.writer = await asyncio.open_connection('127.0.0.1', 8087)
+    tcp.reader, tcp.writer = await asyncio.open_connection(EC2_TCP_IP, EC2_TCP_PORT)
     receive_task = asyncio.create_task(message_received())
     print("got connection")
     try:

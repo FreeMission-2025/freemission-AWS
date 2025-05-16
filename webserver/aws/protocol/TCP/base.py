@@ -12,11 +12,11 @@ from constants import protocol_closed
 
 START_MARKER = b'\x01\x02\x7F\xED'
 END_MARKER = b'\x03\x04\x7F\xED'
-HEADER_FORMAT = "!4s I 3s B B H I"  # Updated header format
+HEADER_FORMAT = "!4s I 3s I I"  # Updated header format
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 
 ACK_MARKER    = b'\x05\x06\x7F\xED'
-ACK_FORMAT    = "!4s 3s B"       # | 4-byte marker | 3-byte frame_id | 1-byte chunk_index |
+ACK_FORMAT    = "!4s 3s"       # | 4-byte marker | 3-byte frame_id 
 ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 
 hasClient = {'value': False}
@@ -123,7 +123,7 @@ class BaseTCP (asyncio.Protocol):
             raise ValueError("Invalid end marker")
 
         # Unpack the header using the updated HEADER_FORMAT
-        start_marker, timestamp, frame_id, total_chunks, chunk_index, chunk_length, checksum = struct.unpack(HEADER_FORMAT, header)
+        start_marker, timestamp, frame_id, chunk_length, checksum = struct.unpack(HEADER_FORMAT, header)
         frame_id = int.from_bytes(frame_id, byteorder='big')
 
         # Validate start marker
@@ -135,12 +135,12 @@ class BaseTCP (asyncio.Protocol):
 
         # Validate checksum (to ensure integrity of the payload)
         if crc32(payload) != checksum:
-            Log.warning(f"Checksum mismatch for {frame_id}, chunk {chunk_index}")
+            Log.warning(f"Checksum mismatch for {frame_id}")
 
         #server_time_ms = int(time.time() * 1000) % 0x100000000
         #elapsed_time_sec = self.calculate_elapsed_time_ms(timestamp, server_time_ms) / 1000.0
 
-        ack = struct.pack(ACK_FORMAT, ACK_MARKER,frame_id.to_bytes(3, 'big'), chunk_index)
+        ack = struct.pack(ACK_FORMAT, ACK_MARKER,frame_id.to_bytes(3, 'big'))
         self.transport.write(ack)
 
         self.handle_received_frame(full_frame=payload, frame_id=frame_id)

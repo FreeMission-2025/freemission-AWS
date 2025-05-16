@@ -42,3 +42,31 @@ class JPG_TO_JPG_TCP(BaseTCP):
             for q in self.frame_queues:
                 if not q.full():
                     q.put_nowait(timestamped_frame)
+
+class JPG_TO_H264_TCP(BaseTCP):
+    def __init__(self, input_queue: ShmQueue | asyncio.Queue):
+        super().__init__()
+
+        self.input_queue: Optional[ShmQueue] = None
+        self.frame_queues: Optional[list[asyncio.Queue]] = None
+
+        if INFERENCE_ENABLED:
+            assert isinstance(input_queue, ShmQueue), \
+                "When inference is enabled, input_queue must be a ShmQueue instance."
+            self.input_queue = input_queue
+        else:
+            assert isinstance(input_queue, asyncio.Queue), \
+                "When inference is disabled, input_queue must be a asyncio.Queue instances."
+            self.encode_queue = input_queue
+
+    def handle_received_frame(self, full_frame: bytes, frame_id):
+        if INFERENCE_ENABLED:
+            np_arr = np.frombuffer(full_frame, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+            self.loop.run_in_executor(None, lambda: self.input_queue.put(frame, frame_id)) 
+        else:
+            if not self.encode_queue.full():
+                self.encode_queue.put_nowait((full_frame, frame_id))        
+        
+
