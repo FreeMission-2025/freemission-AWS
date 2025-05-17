@@ -70,15 +70,27 @@ class UDPSender(asyncio.DatagramProtocol):
 
     def connection_made(self, transport):
         self.transport = transport
-        loop = asyncio.get_event_loop()
-
         sock: socket.socket = transport.get_extra_info('socket')
+        
+        loop = asyncio.get_event_loop()
+        if sock is not None:        
+            # Set send and receive buffer sizes on both client and server
+            bufsize = 32 * 1024 * 1024  # 32MB
 
-        default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
-        print(f"Default SO_sndbuf: {default_sndbuf} bytes")
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 32 * 1024 * 1024)
-        new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
-        print(f"new SO_sndbuf: {new_sndbuf} bytes")
+            default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+            print(f"Default SO_RCVBUF: {default_rcvbuf}")
+            print(f"Default SO_SNDBUF: {default_sndbuf}")
+
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, bufsize)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, bufsize)
+
+            new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+            print(f"New SO_RCVBUF: {new_rcvbuf}")
+            print(f"New SO_SNDBUF: {new_sndbuf}")
+        else:
+            print("Could not get socket from writer")
 
         if self._window_task is None:
             self._window_task = loop.create_task(self._window_sender())
@@ -86,7 +98,6 @@ class UDPSender(asyncio.DatagramProtocol):
             self._resend_task = loop.create_task(self._retransmitter())
         if self._heap_task is None:
             self._heap_task = loop.create_task(self._heap_maintenance())
-        
 
     def send(self, data: bytes):
         """Send via preconfigured EC2_UDP_IP/PORT."""
@@ -241,7 +252,7 @@ async def send_frame(protocol: UDPSender, encoded_frame: bytes):
         protocol.enqueue_chunk(frame_id, chunk_index, header + chunk + END_MARKER)
 
 async def main():
-    url = "http://localhost:80/reset_stream"
+    url = "http://127.0.0.1:80/reset_stream"
     headers = {"Content-Type": "application/json"}
     data = {
         "message": "INIT_STREAM",

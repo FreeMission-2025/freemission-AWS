@@ -35,8 +35,8 @@ sudo ldconfig
 # Install libgl
 sudo apt install libgl1 libgl1-mesa-dev mesa-utils mesa-common-dev
 
-# Install pip and venv
-sudo apt install python3-pip python3-venv
+# Install pip and venv (broken)
+# sudo apt install python3-pip python3-venv
 
 # Install netstat
 sudo apt install net-tools

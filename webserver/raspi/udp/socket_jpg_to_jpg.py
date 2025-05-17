@@ -1,4 +1,5 @@
 import platform
+import socket
 import struct
 import time
 
@@ -39,6 +40,26 @@ class UDPSender(asyncio.DatagramProtocol):
 
     def connection_made(self, transport):
         self.transport = transport
+        sock:socket.socket = self.transport.get_extra_info('socket')
+        
+        if sock is not None:        
+            # Set send and receive buffer sizes on both client and server
+            bufsize = 32 * 1024 * 1024  # 32MB
+
+            default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+            print(f"Default SO_RCVBUF: {default_rcvbuf}")
+            print(f"Default SO_SNDBUF: {default_sndbuf}")
+
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, bufsize)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, bufsize)
+
+            new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+            print(f"New SO_RCVBUF: {new_rcvbuf}")
+            print(f"New SO_SNDBUF: {new_sndbuf}")
+        else:
+            print("Could not get socket from writer")
 
     def datagram_received(self, data: bytes, addr):
         # single method handles both ACKs and normal datagrams
@@ -137,7 +158,7 @@ async def send_frame(protocol: UDPSender, encoded_frame: bytes):
         protocol.send(header + chunk + END_MARKER)
 
 async def main():
-    url = "http://localhost:80/reset_stream"
+    url = "http://127.0.0.1:80/reset_stream"
     headers = {"Content-Type": "application/json"}
     data = {
         "message": "INIT_STREAM",

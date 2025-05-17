@@ -16,6 +16,13 @@ sudo netstat -tuln
 sudo kill 1981 
 sudo kill -9 1981 
 
+# Check Shared Memory
+lsof /dev/shm/eic-hostkey-kKvAZuge
+
+# Increase file descriptor
+ulimit -n
+ulimit -n 65535
+
 # Check sock buffer max limit:
 cat /proc/sys/net/core/rmem_max
 

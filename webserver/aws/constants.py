@@ -158,7 +158,7 @@ class Format(Enum):
 FFMPEG_DIR       = r"C:\ffmpeg\bin"
 INCOMING_FORMAT  = Format.H264      # Valid: JPG or H264
 OUTGOING_FORMAT  = Format.H264      # Valid: JPG or H264
-PROTOCOL_FORMAT  = 'UDP'           # Valid: UDP or TCP
+PROTOCOL_FORMAT  = 'TCP'           # Valid: UDP or TCP
 INFERENCE_ENABLED = bool(True)
 SHOW_FPS = bool(True)
 

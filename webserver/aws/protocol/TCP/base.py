@@ -48,6 +48,16 @@ class BaseTCP (asyncio.Protocol):
         else:
             hasClient['value'] = True
             sock: socket.socket = transport.get_extra_info('socket')
+
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            tcp_nodelay = sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
+            print(f"TCP_NODELAY after setting: {tcp_nodelay}")
+
+            default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+            Log.info(f"Default SO_RCVBUF: {default_rcvbuf} bytes")
+            Log.info(f"Default SO_RCVBUF: {default_sndbuf} bytes")
+
             platforms = platform.system()
             if platforms == "Linux":
                 original_rmem_max = subprocess.check_output(["sysctl", "net.core.rmem_max"]).decode().strip().split('=')[1]
@@ -55,17 +65,25 @@ class BaseTCP (asyncio.Protocol):
                 Log.info("Setting new rmem_max to 32 mb")
                 subprocess.run(["sysctl", "-w", "net.core.rmem_max=33554432"], check=True)
 
-            default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
-            Log.info(f"Default SO_RCVBUF: {default_rcvbuf} bytes")
+                original_wmem_max = subprocess.check_output(["sysctl", "net.core.wmem_max"]).decode().strip().split('=')[1]
+                Log.info(f"Original wmem_max: {original_wmem_max} bytes")
+                Log.info("Setting new wmem_max to 32 mb")
+                subprocess.run(["sysctl", "-w", "net.core.wmem_max=33554432"], check=True)
 
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32 * 1024 * 1024)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 32 * 1024 * 1024)
 
             if platforms == "Linux":
                 Log.info("Restoring default value of rmem_max")
                 subprocess.run(["sysctl", "-w", f"net.core.rmem_max={original_rmem_max}"], check=True)
+                Log.info("Restoring default value of wmem_max")
+                subprocess.run(["sysctl", "-w", f"net.core.wmem_max={original_wmem_max}"], check=True)
 
             new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
             Log.info(f"new SO_RCVBUF: {new_rcvbuf} bytes")
+            Log.info(f"new new_sndbuf: {new_sndbuf} bytes")
+
 
     def data_received(self, data: bytes):
         try:

@@ -4,12 +4,12 @@ import ctypes
 import multiprocessing
 from multiprocessing import Lock, Semaphore, Value, Array
 import os
-import pickle
 from constants import INFERENCE_ENABLED, ServerContext, frame_queues, encode_queue, decode_queue, jpg_queue, EC2Port, encoder, decoder, ordered_queue, protocol_closed, frame_dispatch_reset
 from protocol import JPG_TO_JPG_PROTOCOL, JPG_TO_H264_PROTOCOL, H264_TO_JPG_PROTOCOL, H264_TO_H264_PROTOCOL, JPG_TO_JPG_TCP, JPG_TO_H264_TCP, H264_TO_JPG_TCP, H264_TO_H264_TCP
 from consumers import JPG_TO_JPG_Consumer, JPG_TO_H264_Consumer, H264_TO_JPG_Consumer, H264_TO_H264_Consumer
 from inference import ShmQueue, ObjectDetection, SyncObject
 from utils.ordered_packet import OrderedPacketDispatcher
+import socket
 
 current_file = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_file) 

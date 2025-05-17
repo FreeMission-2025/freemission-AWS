@@ -98,12 +98,25 @@ class UDPSender(asyncio.DatagramProtocol):
         loop = asyncio.get_event_loop()
 
         sock: socket.socket = transport.get_extra_info('socket')
+        
+        if sock is not None:        
+            # Set send and receive buffer sizes on both client and server
+            bufsize = 32 * 1024 * 1024  # 32MB
 
-        default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
-        print(f"Default SO_sndbuf: {default_sndbuf} bytes")
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 32 * 1024 * 1024)
-        new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
-        print(f"new SO_sndbuf: {new_sndbuf} bytes")
+            default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+            print(f"Default SO_RCVBUF: {default_rcvbuf}")
+            print(f"Default SO_SNDBUF: {default_sndbuf}")
+
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, bufsize)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, bufsize)
+
+            new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+            print(f"New SO_RCVBUF: {new_rcvbuf}")
+            print(f"New SO_SNDBUF: {new_sndbuf}")
+        else:
+            print("Could not get socket from writer")
 
         if self._window_task is None:
             self._window_task = loop.create_task(self._window_sender())
@@ -336,7 +349,7 @@ async def main():
     if system == 'Windows':
         multiprocessing.set_start_method('spawn')
 
-    url = "http://localhost:80/reset_stream"
+    url = "http://127.0.0.1:80/reset_stream"
     headers = {"Content-Type": "application/json"}
     data = {
         "message": "INIT_STREAM",

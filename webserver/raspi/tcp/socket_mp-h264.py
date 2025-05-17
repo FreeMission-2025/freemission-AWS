@@ -219,12 +219,36 @@ async def main():
     loop = asyncio.get_running_loop()
 
     tcp.reader, tcp.writer = await asyncio.open_connection(EC2_TCP_IP, EC2_TCP_PORT)
-    receive_task = asyncio.create_task(message_received())
-    print("got connection")
+    sock:socket.socket = tcp.writer.get_extra_info('socket')
+    
+    if sock is not None:    
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        tcp_nodelay = sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
+        print(f"TCP_NODELAY after setting: {tcp_nodelay}")
+
+        # Set send and receive buffer sizes on both client and server
+        bufsize = 32 * 1024 * 1024  # 32MB
+
+        default_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+        default_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+        print(f"Default SO_RCVBUF: {default_rcvbuf}")
+        print(f"Default SO_SNDBUF: {default_sndbuf}")
+
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, bufsize)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, bufsize)
+
+        new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+        new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+        print(f"New SO_RCVBUF: {new_rcvbuf}")
+        print(f"New SO_SNDBUF: {new_sndbuf}")
+        
+        receive_task = asyncio.create_task(message_received())
+        print("got connection")
+    else:
+        print("Could not get socket from writer")
 
     frame_count = 0
     prev_time = time.monotonic()
-
     try:
         while keep_running:
             try:
