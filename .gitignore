@@ -175,3 +175,4 @@ cython_debug/
 webserver/certificate/ssl.conf 
 webserver/aws/model/
 webserver/aws/__exp__/
+webserver/raspi/tcp/testing

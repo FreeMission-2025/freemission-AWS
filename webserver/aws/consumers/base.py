@@ -12,12 +12,13 @@ class BaseConsumer:
     async def handler(self):
         while True:
             try:
-                np_array = await self.loop.run_in_executor(None, self.output_queue.get)
+                # tuple [ndarray, int]
+                _out = await self.loop.run_in_executor(None, self.output_queue.get)
 
-                if np_array is None:
+                if _out is None:
                     continue
 
-                await self.process_handler(np_array)
+                await self.process_handler(_out)
 
             except asyncio.CancelledError:
                 break
@@ -28,6 +29,6 @@ class BaseConsumer:
             except Exception as e:
                 Log.exception(f"Error in handler: {e}")
     
-    async def process_handler(self, np_array: np.ndarray):
+    async def process_handler(self, _out: tuple[np.ndarray, int]):
         """Process frame logic to be overridden by subclasses"""
         raise NotImplementedError("process_frame should be implemented by subclasses")

@@ -24,7 +24,8 @@ class H264_TO_JPG_Consumer(BaseConsumer):
         self.frame_count = 0
         self.prev_time = time.monotonic()
 
-    async def process_handler(self, np_array: np.ndarray):
+    async def process_handler(self, _out: tuple[np.ndarray, int]):
+        np_array, _ = _out
         _, buffer = cv2.imencode(".jpg", np_array, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
         frame_bytes = buffer.tobytes()
 
@@ -51,9 +52,9 @@ class H264_TO_H264_Consumer(BaseConsumer):
         self.frame_count = 0
         self.prev_time = time.monotonic()
 
-    async def process_handler(self, np_array: np.ndarray):
+    async def process_handler(self, _out: tuple[np.ndarray, int]):
         if not self.encode_queue.full():
-            self.encode_queue.put_nowait(np_array)
+            self.encode_queue.put_nowait(_out)
     
     async def encode(self, codec_name: str, device_type: str | HWDeviceType = None):
         isHwSupported = False
@@ -83,9 +84,10 @@ class H264_TO_H264_Consumer(BaseConsumer):
         else:
             encoder = libx264_encoder()
 
+        Log.info(f"using {encoder.name}")
         while True:
             try:
-                frame_bgr = await self.encode_queue.get()
+                frame_bgr, _ = await self.encode_queue.get()
 
                 img_yuv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YUV_I420)
                 video_frame = av.VideoFrame.from_ndarray(img_yuv, format='yuv420p')
@@ -109,7 +111,7 @@ class H264_TO_H264_Consumer(BaseConsumer):
                 for q in self.frame_queue:
                     if not q.full():
                         q.put_nowait(timestamped_frame)
-                
+
                 if SHOW_FPS:
                     self.frame_count += 1
                     now = time.monotonic()

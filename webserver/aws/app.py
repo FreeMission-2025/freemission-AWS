@@ -3,7 +3,7 @@ import base64
 from collections.abc import AsyncIterable
 from datetime import datetime
 import time
-from blacksheep import Application, Request, Response, StreamedContent, get, WebSocket, WebSocketDisconnectError, ws
+from blacksheep import Application, Request, Response, StreamedContent, get, WebSocket, WebSocketDisconnectError, json, post, ws
 from blacksheep.server.compression import GzipMiddleware
 from blacksheep.server.sse import ServerSentEvent
 from blacksheep.server.rendering.jinja2 import JinjaRenderer
@@ -11,7 +11,7 @@ from blacksheep.settings.html import html_settings
 from blacksheep.server.responses import view_async
 import os
 from utils.logger import Log
-from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP
+from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP, stream_status, Format
 
 app = Application(show_error_details=True)
 html_settings.use(JinjaRenderer(enable_async=True))
@@ -37,22 +37,31 @@ def home(request: Request):
 '''
     Receive Video From Raspberry PI
 '''
-from constants import INCOMING_FORMAT, OUTGOING_FORMAT 
+from constants import INCOMING_FORMAT, OUTGOING_FORMAT, PROTOCOL_FORMAT
 from constants import frame_queues, INFERENCE_ENABLED
-from handler import handle_jpg_to_jpg, handle_jpg_to_h264, handle_h264_to_jpg, handle_h264_to_h264, ctx
+from handler import handle_jpg_to_jpg, handle_jpg_to_h264, handle_h264_to_jpg, handle_h264_to_h264, tcp_handle_jpg_to_jpg, tcp_handle_jpg_to_h264, tcp_handle_h264_to_jpg, tcp_handle_h264_to_h264, ctx
 from inference import get_onnx_status
 
 @app.after_start
 async def start():
-    handlers = {
-        ('JPG', 'JPG'): handle_jpg_to_jpg,
-        ('JPG', 'H264'): handle_jpg_to_h264,
-        ('H264', 'JPG'): handle_h264_to_jpg,
-        ('H264', 'H264'): handle_h264_to_h264,
-    }
+    if PROTOCOL_FORMAT == 'TCP':
+        handlers = {
+            ('JPG', 'JPG'): tcp_handle_jpg_to_jpg.start,
+            ('JPG', 'H264'): tcp_handle_jpg_to_h264.start,
+            ('H264', 'JPG'): tcp_handle_h264_to_jpg.start,
+            ('H264', 'H264'): tcp_handle_h264_to_h264.start,
+        }
+    elif PROTOCOL_FORMAT == 'UDP':
+        handlers = {
+            ('JPG', 'JPG'): handle_jpg_to_jpg.start,
+            ('JPG', 'H264'): handle_jpg_to_h264.start,
+            ('H264', 'JPG'): handle_h264_to_jpg.start,
+            ('H264', 'H264'): handle_h264_to_h264.start,
+        }
+    else:
+        raise ValueError("Invalid Protocol Format")
 
     assert get_onnx_status() or not INFERENCE_ENABLED, "Please install onnxruntime package if inference is enabled!"
-
 
     handler = handlers.get((INCOMING_FORMAT.value, OUTGOING_FORMAT.value))
     if handler:
@@ -64,6 +73,33 @@ async def start():
 async def cleanup_server():
     await asyncio.sleep(0.2)
     await ctx.cleanup()
+
+@post("/reset_stream")
+async def start_stream(request: Request):
+    if request.method != "POST":
+        return json({"error": True, "message": "Invalid Method"}, status=405)
+    
+    body: dict   = await request.json()
+    message:str = body.get('message')
+    auth:str    = body.get('auth')
+
+    if message == 'INIT_STREAM' and auth == 'BAYU':
+        if not stream_status['value']:
+            stream_status['value'] = True
+            return json({"error": False, "message": "STREAM CAN START", "first_time": True})
+        else:
+            if INCOMING_FORMAT.value == Format.H264.value and OUTGOING_FORMAT.value == Format.H264.value:
+                await handle_h264_to_h264.reset()
+            elif INCOMING_FORMAT.value == Format.H264.value and OUTGOING_FORMAT.value == Format.JPG.value:
+                await handle_h264_to_jpg.reset()
+            elif INCOMING_FORMAT.value == Format.JPG.value and OUTGOING_FORMAT.value == Format.H264.value:
+                await handle_jpg_to_h264.reset()
+            elif INCOMING_FORMAT.value == Format.JPG.value and OUTGOING_FORMAT.value == Format.JPG.value:
+                await handle_jpg_to_jpg.reset()
+
+            return json({"error": False, "message": "STREAM CAN START", "first_time": False})
+
+    return json({"error": False})
 
 
 ''' 

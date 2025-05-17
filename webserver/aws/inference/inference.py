@@ -136,7 +136,7 @@ class ObjectDetection:
     def run(self):
         while True:
             try:
-                frame = self.input_queue.get()
+                frame, frame_id = self.input_queue.get()
                 
                 # Perform inference
                 detections = self.infer(frame)
@@ -144,7 +144,7 @@ class ObjectDetection:
                 # Draw detections on the frame
                 frame = self.draw_detections(frame, detections)
 
-                self.output_queue.put(frame.copy())
+                self.output_queue.put(frame.copy(), frame_id)
 
             except KeyboardInterrupt:
                 break
