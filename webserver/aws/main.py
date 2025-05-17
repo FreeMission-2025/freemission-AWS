@@ -2,7 +2,8 @@ from multiprocessing import shared_memory
 import platform
 import signal
 from typing import Any
-from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT
+from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP
+from utils.logger import Log
 
 system = platform.system()
 try:
@@ -47,6 +48,11 @@ def main():
     config.alpn_protocols = ["h3", "h2", "http/1.1"] 
     config.accesslog = "-"  
     config.access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s'
+
+    if PUBLIC_IP == '127.0.0.1':
+        Log.warning('Using 127.0.0.1 instead of public IP. Use this if not running webserver on same machine (on aws)')
+    else:
+        Log.warning('Using public IP instead of 127.0.0.1. Use this if running webserver on the same machine')
 
     try:
         asyncio.run(serve(app, config, mode='asgi'))

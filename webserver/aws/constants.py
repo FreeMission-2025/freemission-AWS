@@ -168,5 +168,5 @@ decoder = base_codec('h264')
 QUIC_PORT  = 4433  # quic
 HTTP_PORT  = 80    # http 1.1
 HTTPS_PORT = 8080  # http 2
-PUBLIC_IP  = '127.0.0.1'  # get_public_ip() or '127.0.0.1 '
+PUBLIC_IP  = '127.0.0.1'  # get_public_ip() or '127.0.0.1'
 
