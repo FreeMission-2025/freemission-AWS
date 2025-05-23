@@ -61,7 +61,6 @@ class H264_TO_JPG_TCP(BaseTCP):
             raise ValueError("Inference must be enabled")
 
         decoder = get_decoder(decoder_name, device_type)
-        decoder = get_decoder(decoder_name, device_type)
         time_base = (Fraction(1, 30)) * 1_000_000 
 
         while True:
@@ -77,8 +76,8 @@ class H264_TO_JPG_TCP(BaseTCP):
                 if len(decoded_video_frames) <= 0:
                     continue
                 
-                decoded_video_frame = decoded_video_frames[0]
-                decoded_frame = decoded_video_frame.to_ndarray()
+                decoded_video_frame:av.VideoFrame = decoded_video_frames[0]
+                decoded_frame = decoded_video_frame.to_ndarray(format='yuv420p')
                 bgr_frame = cv2.cvtColor(decoded_frame, cv2.COLOR_YUV2BGR_I420)
 
                 await loop.run_in_executor(None, lambda: input_queue.put(bgr_frame, frame_id))
@@ -112,8 +111,8 @@ class H264_TO_JPG_TCP(BaseTCP):
                 if len(decoded_video_frames) <= 0:
                     continue
                 
-                decoded_video_frame = decoded_video_frames[0]
-                decoded_frame = decoded_video_frame.to_ndarray()
+                decoded_video_frame:av.VideoFrame = decoded_video_frames[0]
+                decoded_frame = decoded_video_frame.to_ndarray(format='yuv420p')
                 bgr_frame = cv2.cvtColor(decoded_frame, cv2.COLOR_YUV2BGR_I420)
 
                 success, jpeg_encoded = cv2.imencode('.jpg', bgr_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
@@ -201,8 +200,8 @@ class H264_TO_H264_TCP(BaseTCP):
                 if len(decoded_video_frames) <= 0:
                     continue
                 
-                decoded_video_frame = decoded_video_frames[0]
-                decoded_frame = decoded_video_frame.to_ndarray()
+                decoded_video_frame:av.VideoFrame = decoded_video_frames[0]
+                decoded_frame = decoded_video_frame.to_ndarray(format='yuv420p')
                 bgr_frame = cv2.cvtColor(decoded_frame, cv2.COLOR_YUV2BGR_I420)
 
                 await loop.run_in_executor(None, lambda: input_queue.put(bgr_frame, frame_id))

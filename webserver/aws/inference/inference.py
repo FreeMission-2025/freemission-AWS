@@ -15,6 +15,7 @@ except ImportError:
 def get_onnx_status():
     return isOnnxInstalled
 
+
 class ObjectDetection:
     """
     Initialize the ObjectDetection class.
@@ -26,7 +27,7 @@ class ObjectDetection:
     :param conf_threshold: Confidence threshold for filtering detections
     :param class_names: List of class names
     """
-    def __init__(self, model_path: str, input_queue: ShmQueue, output_queue: ShmQueue, input_size=(640, 640), conf_threshold=0.25, class_names=None):
+    def __init__(self, model_path: str, input_queue: ShmQueue, output_queue: ShmQueue, input_size=None, conf_threshold=0.25, class_names=None):
         if not isOnnxInstalled:
             raise RuntimeError("Onnxruntime Is Not Installed")
         
@@ -44,7 +45,7 @@ class ObjectDetection:
         self.sess_options = onnxruntime.SessionOptions()
         self.sess_options.log_severity_level = 1
         self.session = onnxruntime.InferenceSession(model_path, self.sess_options, 
-                                                    providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+                                                    providers=[ 'CUDAExecutionProvider', 'CPUExecutionProvider'])
 
         # Get input and output names
         self.input_name = self.session.get_inputs()[0].name
@@ -52,6 +53,11 @@ class ObjectDetection:
 
         # Set class names
         self.class_names = class_names if class_names else ['smoke', 'fire']
+
+        if input_size is None:
+            from constants import SOURCE_WIDTH, SOURCE_HEIGHT
+            input_size = (max(SOURCE_WIDTH,SOURCE_HEIGHT), max(SOURCE_WIDTH,SOURCE_HEIGHT))
+
         self.input_size = input_size
         self.conf_threshold = conf_threshold
 

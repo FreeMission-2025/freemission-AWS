@@ -5,7 +5,7 @@ from utils.logger import Log
 from constants import frame_dispatch_reset, INFERENCE_ENABLED, INCOMING_FORMAT, OUTGOING_FORMAT, Format
 
 class OrderedPacketDispatcher:
-    def __init__(self, input: asyncio.Queue, output: asyncio.Queue | list[asyncio.Queue], max_fps=30, timeout=0.4, poll_interval=0.03):
+    def __init__(self, input: asyncio.Queue, output: asyncio.Queue | list[asyncio.Queue], max_fps=30, timeout=0.5, poll_interval=0.03):
         assert isinstance(input, asyncio.Queue), "input_queue must be a ShmQueue instance."
         
         self.input = input
@@ -132,8 +132,12 @@ class OrderedPacketDispatcher:
 
                 else:
                     Log.warning(f"[Dispatcher] Timeout {waited} waiting for frame_id {self.expected_frame_id}, skipping.")
-
+                    # Drop outdated frames
                     if self.expected_frame_id is not None:
+                        while self.buffer and self.buffer[0][0] < self.expected_frame_id:
+                            outdated_id, _ = heapq.heappop(self.buffer)
+                            self.received_map.pop(outdated_id, None)
+                            
                         if self.buffer:
                             self.expected_frame_id = self.buffer[0][0]
 

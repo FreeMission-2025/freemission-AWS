@@ -6,7 +6,7 @@ import time
 from typing import List
 from inference import ShmQueue
 from utils.logger import Log
-from constants import FFMPEG_DIR, SHOW_FPS
+from constants import FFMPEG_DIR, SHOW_FPS, SOURCE_WIDTH, SOURCE_HEIGHT
 
 # Import ffmpeg
 if os.path.exists(FFMPEG_DIR):
@@ -26,8 +26,8 @@ class EncodersProperties():
 def h264_nvenc():
     hwaccel = HWAccel(device_type='cuda', allow_software_fallback=False)
     encoder = av.CodecContext.create('h264_nvenc', 'w', hwaccel)
-    encoder.width = 640
-    encoder.height = 480
+    encoder.width = SOURCE_WIDTH
+    encoder.height = SOURCE_HEIGHT
     encoder.pix_fmt = 'yuv420p'
     encoder.bit_rate = 2000000  
     encoder.framerate = 30 
@@ -48,8 +48,8 @@ def h264_nvenc():
 
 def libx264_encoder():
     encoder = av.CodecContext.create('libx264', 'w')
-    encoder.width = 640
-    encoder.height = 480
+    encoder.width = SOURCE_WIDTH
+    encoder.height = SOURCE_HEIGHT
     encoder.pix_fmt = 'yuv420p'
     encoder.bit_rate = 2000000  
     encoder.framerate = 30 
