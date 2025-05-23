@@ -16,7 +16,7 @@ import requests
 
 HOST = '192.168.18.48'
 PORT = 8085
-MAX_UDP_PACKET_SIZE = 32000  #
+MAX_UDP_PACKET_SIZE = 1450  #
 WIDTH, HEIGHT = 640, 480
 JPEG_QUALITY = 50
 
@@ -36,7 +36,7 @@ ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 frame_id_counter = 0
 
 class UDPSender(asyncio.DatagramProtocol):
-    def __init__(self, window_size=30, timeout=200):
+    def __init__(self, window_size=30, timeout=300):
         self.transport     = None
         self._send_queue   = asyncio.Queue()         # (fid, idx, packet)
         self._pending      = {}              # (fid,idx) -> (packet, last_send_ms)

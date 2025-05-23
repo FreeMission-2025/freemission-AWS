@@ -52,8 +52,18 @@ class H264_TO_JPG_TCP(BaseTCP):
     
     @staticmethod
     def __unpack_packet(packet_data: bytes):
-        timestamp_us, frame_type = struct.unpack(">QB",  packet_data[:9])
-        return timestamp_us, frame_type, packet_data[9:]   
+        '''
+            time_base.num    (8 bytes) → Q  
+            time_base.den    (8 bytes) → Q  
+            pts              (8 bytes) → q  
+            dts              (8 bytes) → q  
+            frame_type       (1 byte)  → B  
+            duration         (4 bytes) → I  
+            raw H.264 data   (N bytes)
+        '''
+        nume, denu, pts, dts, frame_type, duration = struct.unpack(">QQqqBI", packet_data[:37])
+        raw_h264 = packet_data[37:]
+        return nume, denu, pts, dts, frame_type, duration, raw_h264
     
     @staticmethod
     async def __decode_to_shm(input_queue: ShmQueue, decode_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop, decoder_name: str, device_type: str | None):
@@ -66,11 +76,14 @@ class H264_TO_JPG_TCP(BaseTCP):
         while True:
             try:
                 encoded_packet_bytes, frame_id = await decode_queue.get()
-                timestamp_us, frame_type, packet_data = H264_TO_JPG_TCP.__unpack_packet(encoded_packet_bytes)
+                nume, denu, pts, dts, frame_type, duration, packet_data = H264_TO_JPG_TCP.__unpack_packet(encoded_packet_bytes)
 
                 packet = Packet(packet_data)
                 packet.is_keyframe = True if frame_type == 1 else False
-                packet.pts = round(timestamp_us / time_base)
+                packet.time_base = Fraction(nume, denu)
+                packet.pts = pts
+                packet.dts = dts
+                packet.duration = duration
                 decoded_video_frames = await loop.run_in_executor(None, lambda: decoder.decode(packet)) 
 
                 if len(decoded_video_frames) <= 0:
@@ -95,17 +108,19 @@ class H264_TO_JPG_TCP(BaseTCP):
             raise ValueError("Inference must be disabled")
         
         decoder = get_decoder(decoder_name, device_type)
-        time_base = (Fraction(1, 30)) * 1_000_000 
 
         while True:
             try:
                 encoded_packet_bytes, _ = await decode_queue.get()
-
-                timestamp_us, frame_type, packet_data = H264_TO_JPG_TCP.__unpack_packet(encoded_packet_bytes)
+                nume, denu, pts, dts, frame_type, duration, packet_data = H264_TO_JPG_TCP.__unpack_packet(encoded_packet_bytes)
 
                 packet = Packet(packet_data)
                 packet.is_keyframe = True if frame_type == 1 else False
-                packet.pts = round(timestamp_us / time_base)
+                packet.time_base = Fraction(nume, denu)
+                packet.pts = pts
+                packet.dts = dts
+                packet.duration = duration
+                
                 decoded_video_frames = await loop.run_in_executor(None, lambda: decoder.decode(packet)) 
 
                 if len(decoded_video_frames) <= 0:
@@ -157,9 +172,19 @@ class H264_TO_H264_TCP(BaseTCP):
 
     @staticmethod
     def __unpack_packet(packet_data: bytes):
-        timestamp_us, frame_type = struct.unpack(">QB",  packet_data[:9])
-        return timestamp_us, frame_type, packet_data[9:]   
-    
+        '''
+            time_base.num    (8 bytes) → Q  
+            time_base.den    (8 bytes) → Q  
+            pts              (8 bytes) → q  
+            dts              (8 bytes) → q  
+            frame_type       (1 byte)  → B  
+            duration         (4 bytes) → I  
+            raw H.264 data   (N bytes)
+        '''
+        nume, denu, pts, dts, frame_type, duration = struct.unpack(">QQqqBI", packet_data[:37])
+        raw_h264 = packet_data[37:]
+        return nume, denu, pts, dts, frame_type, duration, raw_h264
+        
     def handle_received_frame(self, full_frame: bytes, frame_id):
         if INFERENCE_ENABLED:
             if not self.decode_queue.full():
@@ -181,17 +206,20 @@ class H264_TO_H264_TCP(BaseTCP):
 
         decoder = get_decoder(decoder_name, device_type)
         Log.info(f"using {decoder.name}")
-        time_base = (Fraction(1, 30)) * 1_000_000 
         loop = asyncio.get_event_loop()
 
         while True:
             try:
                 encoded_packet_bytes, frame_id = await decode_queue.get()
-                timestamp_us, frame_type, packet_data = H264_TO_H264_TCP.__unpack_packet(encoded_packet_bytes)
+                nume, denu, pts, dts, frame_type, duration, packet_data = H264_TO_H264_TCP.__unpack_packet(encoded_packet_bytes)
 
                 packet = Packet(packet_data)
                 packet.is_keyframe = True if frame_type == 1 else False
-                packet.pts = round(timestamp_us / time_base)
+                packet.time_base = Fraction(nume, denu)
+                packet.pts = pts
+                packet.dts = dts
+                packet.duration = duration
+                print(f"time_base: {nume}/{denu}, pts: {pts}, dts: {dts}, duration: {duration}")
 
                 #start = time.perf_counter()
                 decoded_video_frames = await loop.run_in_executor(None, lambda: decoder.decode(packet)) 

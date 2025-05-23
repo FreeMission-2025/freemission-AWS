@@ -19,13 +19,28 @@ input_container = av.open(
         'video_size': '1920x1080',
         'framerate': '30',
         'fflags': '+genpts'
-    }
+    },
+    mode='r'
 )
 
 video_stream = None
 for stream in input_container.streams:
     if stream.type == 'video':
         video_stream = stream
+        for attr in dir(video_stream.codec_context):
+            try:
+                value = getattr(video_stream.codec_context, attr)
+                print(f"{attr}: {value}")
+            except Exception as e:
+                print(f"{attr}: <unreadable> ({e})")
+
+        print("dwadddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+        for attr in dir(video_stream):
+            try:
+                value = getattr(video_stream, attr)
+                print(f"{attr}: {value}")
+            except Exception as e:
+                print(f"{attr}: <unreadable> ({e})")
         break
 
 if video_stream:
@@ -44,7 +59,17 @@ stream.bit_rate = 5_000_000  # 3 Mbps
 stream.time_base = Fraction(1,30)
 frame_index = 0
 
+print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
 for frame in input_container.decode(video=0):
+    for attr in dir(video_stream):
+        try:
+            value = getattr(video_stream, attr)
+            print(f"{attr}: {value}")
+        except Exception as e:
+            print(f"{attr}: <unreadable> ({e})")
+    break
+
     # Set frame pts (presentation timestamp)
     frame.pts = frame_index
     frame.time_base = Fraction(1,30)

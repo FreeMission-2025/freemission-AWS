@@ -1,0 +1,432 @@
+(venv) tdgcs@raspberrypi:~/teknofest $ python ffmpeg/socket_av_h264.py 
+__class__: <class 'av.video.codeccontext.VideoCodecContext'>
+__delattr__: <method-wrapper '__delattr__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__dir__: <built-in method __dir__ of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__doc__: None
+__eq__: <method-wrapper '__eq__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__format__: <built-in method __format__ of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__ge__: <method-wrapper '__ge__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__getattribute__: <method-wrapper '__getattribute__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__getstate__: <built-in method __getstate__ of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__gt__: <method-wrapper '__gt__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__hash__: <method-wrapper '__hash__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__init__: <method-wrapper '__init__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x7fff401c0320>
+__le__: <method-wrapper '__le__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__lt__: <method-wrapper '__lt__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__ne__: <method-wrapper '__ne__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__new__: <built-in method __new__ of type object at 0x7fff401c0320>
+__pyx_vtable__: <capsule object NULL at 0x7fff4064f5d0>
+__reduce__: <built-in method __reduce_cython__ of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__repr__: <method-wrapper '__repr__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__setattr__: <method-wrapper '__setattr__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__setstate__: <built-in method __setstate_cython__ of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__sizeof__: <built-in method __sizeof__ of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__str__: <method-wrapper '__str__' of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x7fff401c0320>
+_send_frame_and_recv: <built-in method _send_frame_and_recv of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+bit_rate: None
+bit_rate_tolerance: None
+bits_per_coded_sample: 0
+codec: <av.Codec h264 mode='r'>
+codec_tag: 
+coded_height: 0
+coded_width: 0
+color_primaries: 5
+color_range: 1
+color_trc: 5
+colorspace: 5
+copy_opaque: False
+create: <built-in function create>
+decode: <built-in method decode of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+delay: 0
+display_aspect_ratio: 16/9
+encode: <built-in method encode of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+encode_lazy: <built-in method encode_lazy of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+encoded_frame_count: 0
+extradata: b"\x00\x00\x01'M\x00(\xe7@(\x02\xdd\x80\xa5\x05\x05\x05\xf0\x00\x00\x03\x00\x10\x00\x00\x03\x03+\x02\x00\x01n6\x00\x00\x89T\x7f\xff\xc0\xa0\x00\x00\x00\x01(\xee<\x80\x00"
+extradata_size: 50
+flags: 0
+flags2: 0
+flush_buffers: <built-in method flush_buffers of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+format: <av.VideoFormat yuv420p, 1280x720>
+framerate: 25
+gop_size: <unreadable> (Cannnot access 'gop_size' as a decoder)
+has_b_frames: False
+height: 720
+hwaccel: None
+is_decoder: 1
+is_encoder: 0
+is_hwaccel: False
+is_open: False
+max_b_frames: 0
+max_bit_rate: None
+name: h264
+open: <built-in method open of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+options: {}
+parse: <built-in method parse of av.video.codeccontext.VideoCodecContext object at 0x7fff46f6c4a0>
+pix_fmt: yuv420p
+profile: Main
+profiles: ['Baseline', 'Constrained Baseline', 'Main', 'Extended', 'High', 'High 10', 'High 10 Intra', 'High 4:2:2', 'High 4:2:2 Intra', 'High 4:4:4', 'High 4:4:4 Predictive', 'High 4:4:4 Intra', 'CAVLC 4:4:4', 'Multiview High', 'Stereo High']
+qmax: 31
+qmin: 2
+qscale: False
+rate: 25
+reformatter: None
+sample_aspect_ratio: 1
+skip_frame: DEFAULT
+thread_count: 0
+thread_type: ThreadType.SLICE
+time_base: <unreadable> (Cannot access 'time_base' as a decoder)
+type: video
+width: 1280
+dwadddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+__class__: <class 'av.video.stream.VideoStream'>
+__delattr__: <method-wrapper '__delattr__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__dir__: <built-in method __dir__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__doc__: None
+__eq__: <method-wrapper '__eq__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__format__: <built-in method __format__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__ge__: <method-wrapper '__ge__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__getattr__: <built-in method __getattr__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__getattribute__: <method-wrapper '__getattribute__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__getstate__: <built-in method __getstate__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__gt__: <method-wrapper '__gt__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__hash__: <method-wrapper '__hash__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__init__: <method-wrapper '__init__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x7fff407602c8>
+__le__: <method-wrapper '__le__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__lt__: <method-wrapper '__lt__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__ne__: <method-wrapper '__ne__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__new__: <built-in method __new__ of type object at 0x7fff407602c8>
+__pyx_vtable__: <capsule object NULL at 0x7fff40f30510>
+__reduce__: <built-in method __reduce_cython__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__repr__: <method-wrapper '__repr__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__setattr__: <method-wrapper '__setattr__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__setstate__: <built-in method __setstate_cython__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__sizeof__: <built-in method __sizeof__ of av.video.stream.VideoStream object at 0x7fff46da9350>
+__str__: <method-wrapper '__str__' of av.video.stream.VideoStream object at 0x7fff46da9350>
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x7fff407602c8>
+average_rate: 30
+base_rate: 30
+codec_context: <av.VideoCodecContext video/h264 at 0x7fff46f6c4a0>
+container: <av.InputContainer '/dev/video0'>
+decode: <built-in method decode of av.video.stream.VideoStream object at 0x7fff46da9350>
+display_aspect_ratio: 16/9
+disposition: Disposition(0)
+duration: None
+encode: <built-in method encode of av.video.stream.VideoStream object at 0x7fff46da9350>
+frames: 0
+guessed_rate: 30
+id: 0
+index: 0
+language: None
+metadata: {}
+profile: Main
+profiles: ['Baseline', 'Constrained Baseline', 'Main', 'Extended', 'High', 'High 10', 'High 10 Intra', 'High 4:2:2', 'High 4:2:2 Intra', 'High 4:4:4', 'High 4:4:4 Predictive', 'High 4:4:4 Intra', 'CAVLC 4:4:4', 'Multiview High', 'Stereo High']
+sample_aspect_ratio: 1
+start_time: 1747978823804020
+time_base: 1/1000000
+type: video
+Codec name: h264
+Codec long name: H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+__class__: <class 'av.packet.Packet'>
+__delattr__: <method-wrapper '__delattr__' of av.packet.Packet object at 0x7fff40e88cc0>
+__dir__: <built-in method __dir__ of av.packet.Packet object at 0x7fff40e88cc0>
+__doc__: Packet(input=None)
+A packet of encoded data within a :class:`~av.format.Stream`.
+
+This may, or may not include a complete object within a stream.
+:meth:`decode` must be called to extract encoded data.
+__eq__: <method-wrapper '__eq__' of av.packet.Packet object at 0x7fff40e88cc0>
+__format__: <built-in method __format__ of av.packet.Packet object at 0x7fff40e88cc0>
+__ge__: <method-wrapper '__ge__' of av.packet.Packet object at 0x7fff40e88cc0>
+__getattribute__: <method-wrapper '__getattribute__' of av.packet.Packet object at 0x7fff40e88cc0>
+__getstate__: <built-in method __getstate__ of av.packet.Packet object at 0x7fff40e88cc0>
+__gt__: <method-wrapper '__gt__' of av.packet.Packet object at 0x7fff40e88cc0>
+__hash__: <method-wrapper '__hash__' of av.packet.Packet object at 0x7fff40e88cc0>
+__init__: <method-wrapper '__init__' of av.packet.Packet object at 0x7fff40e88cc0>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x7fff40d20308>
+__le__: <method-wrapper '__le__' of av.packet.Packet object at 0x7fff40e88cc0>
+__lt__: <method-wrapper '__lt__' of av.packet.Packet object at 0x7fff40e88cc0>
+__ne__: <method-wrapper '__ne__' of av.packet.Packet object at 0x7fff40e88cc0>
+__new__: <built-in method __new__ of type object at 0x7fff40d20308>
+__pyx_vtable__: <capsule object NULL at 0x7fff46d08ff0>
+__reduce__: <built-in method __reduce_cython__ of av.packet.Packet object at 0x7fff40e88cc0>
+__reduce_ex__: <built-in method __reduce_ex__ of av.packet.Packet object at 0x7fff40e88cc0>
+__repr__: <method-wrapper '__repr__' of av.packet.Packet object at 0x7fff40e88cc0>
+__setattr__: <method-wrapper '__setattr__' of av.packet.Packet object at 0x7fff40e88cc0>
+__setstate__: <built-in method __setstate_cython__ of av.packet.Packet object at 0x7fff40e88cc0>
+__sizeof__: <built-in method __sizeof__ of av.packet.Packet object at 0x7fff40e88cc0>
+__str__: <method-wrapper '__str__' of av.packet.Packet object at 0x7fff40e88cc0>
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x7fff40d20308>
+buffer_ptr: 728744144
+buffer_size: 1022
+decode: <built-in method decode of av.packet.Packet object at 0x7fff40e88cc0>
+dts: None
+duration: 33333
+is_corrupt: False
+is_discard: False
+is_disposable: False
+is_keyframe: False
+is_trusted: False
+opaque: None
+pos: None
+pts: None
+size: 1022
+stream: <av.VideoStream #0 h264, yuv420p 1280x720 at 0x7fff46da9350>
+stream_index: 0
+time_base: 1/1000000
+update: <built-in method update of av.packet.Packet object at 0x7fff40e88cc0>
+
+
+ python .\webserver\raspi\v380\av_webcam.py
+__class__: <class 'av.video.codeccontext.VideoCodecContext'>
+__delattr__: <method-wrapper '__delattr__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__dir__: <built-in method __dir__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__doc__: None
+__eq__: <method-wrapper '__eq__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__format__: <built-in method __format__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__ge__: <method-wrapper '__ge__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__getattribute__: <method-wrapper '__getattribute__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__getstate__: <built-in method __getstate__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__gt__: <method-wrapper '__gt__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__hash__: <method-wrapper '__hash__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__init__: <method-wrapper '__init__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x00007FF893372A70>
+__le__: <method-wrapper '__le__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__lt__: <method-wrapper '__lt__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__ne__: <method-wrapper '__ne__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__new__: <built-in method __new__ of type object at 0x00007FF893372A70>
+__pyx_vtable__: <capsule object NULL at 0x00000186B7884480>
+__reduce__: <built-in method __reduce_cython__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__repr__: <built-in method __repr__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__setattr__: <method-wrapper '__setattr__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__setstate__: <built-in method __setstate_cython__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__sizeof__: <built-in method __sizeof__ of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__str__: <method-wrapper '__str__' of av.video.codeccontext.VideoCodecContext object at 0x000001869A49B420>
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x00007FF893372A70>
+_send_frame_and_recv: <bound method CodecContext._send_frame_and_recv of <av.VideoCodecContext video/mjpeg at 0x1869a49b420>>
+bit_rate: None
+bit_rate_tolerance: None
+bits_per_coded_sample: 24
+codec: <av.Codec mjpeg mode='r'>
+codec_tag: MJPG
+coded_height: 0
+coded_width: 0
+color_primaries: 1
+color_range: 2
+color_trc: 2
+colorspace: 5
+copy_opaque: False
+create: <cyfunction CodecContext.create at 0x00000186B7616330>
+decode: <bound method CodecContext.decode of <av.VideoCodecContext video/mjpeg at 0x1869a49b420>>
+delay: 0
+display_aspect_ratio: 256/81
+encode: <bound method CodecContext.encode of <av.VideoCodecContext video/mjpeg at 0x1869a49b420>>
+encode_lazy: <bound method CodecContext.encode_lazy of <av.VideoCodecContext video/mjpeg at 0x1869a49b420>>
+encoded_frame_count: 0
+extradata: None
+extradata_size: 0
+flags: 0
+flags2: 0
+flush_buffers: <bound method CodecContext.flush_buffers of <av.VideoCodecContext video/mjpeg at 0x1869a49b420>>
+format: <av.VideoFormat yuvj420p, 1920x1080>
+framerate: None
+gop_size: <unreadable> (Cannnot access 'gop_size' as a decoder)
+has_b_frames: False
+height: 1080
+hwaccel: None
+is_decoder: 1
+is_encoder: 0
+is_hwaccel: False
+is_open: False
+max_b_frames: 0
+max_bit_rate: None
+name: mjpeg
+open: <bound method CodecContext.open of <av.VideoCodecContext video/mjpeg at 0x1869a49b420>>
+options: {}
+parse: <bound method CodecContext.parse of <av.VideoCodecContext video/mjpeg at 0x1869a49b420>>
+pix_fmt: yuvj420p
+profile: Baseline
+profiles: ['Baseline', 'Sequential', 'Progressive', 'Lossless', 'JPEG LS']
+qmax: 31
+qmin: 2
+qscale: False
+rate: None
+reformatter: None
+sample_aspect_ratio: 16/9
+skip_frame: DEFAULT
+thread_count: 0
+thread_type: ThreadType.SLICE
+time_base: <unreadable> (Cannot access 'time_base' as a decoder)
+type: video
+width: 1920
+dwadddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+__class__: <class 'av.video.stream.VideoStream'>
+__delattr__: <method-wrapper '__delattr__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__dir__: <built-in method __dir__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__doc__: None
+__eq__: <method-wrapper '__eq__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__format__: <built-in method __format__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__ge__: <method-wrapper '__ge__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getattr__: <built-in method __getattr__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getattribute__: <method-wrapper '__getattribute__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getstate__: <built-in method __getstate__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__gt__: <method-wrapper '__gt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__hash__: <method-wrapper '__hash__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init__: <method-wrapper '__init__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x00007FF898900770>
+__le__: <method-wrapper '__le__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__lt__: <method-wrapper '__lt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__ne__: <method-wrapper '__ne__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__new__: <built-in method __new__ of type object at 0x00007FF898900770>
+__pyx_vtable__: <capsule object NULL at 0x00000186B767D560>
+__reduce__: <built-in method __reduce_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__repr__: <built-in method __repr__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setattr__: <method-wrapper '__setattr__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setstate__: <built-in method __setstate_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__sizeof__: <built-in method __sizeof__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__str__: <method-wrapper '__str__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x00007FF898900770>
+average_rate: 10000000/333333
+base_rate: 10000000/333333
+codec_context: <av.VideoCodecContext video/mjpeg at 0x1869a49b420>
+container: <av.InputContainer 'video=V380 FHD Camera'>
+decode: <bound method VideoStream.decode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+display_aspect_ratio: 256/81
+disposition: Disposition(0)
+duration: None
+encode: <bound method VideoStream.encode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+frames: 0
+guessed_rate: 10000000/333333
+id: 0
+index: 0
+language: None
+metadata: {}
+profile: Baseline
+profiles: ['Baseline', 'Sequential', 'Progressive', 'Lossless', 'JPEG LS']
+sample_aspect_ratio: 16/9
+start_time: 185679820537
+time_base: 1/10000000
+type: video
+Codec name: mjpeg
+Codec long name: MJPEG (Motion JPEG)
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+__class__: <class 'av.video.stream.VideoStream'>
+__delattr__: <method-wrapper '__delattr__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__dir__: <built-in method __dir__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__doc__: None
+__eq__: <method-wrapper '__eq__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__format__: <built-in method __format__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__ge__: <method-wrapper '__ge__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getattr__: <built-in method __getattr__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getattribute__: <method-wrapper '__getattribute__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getattribute__: <method-wrapper '__getattribute__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getstate__: <built-in method __getstate__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__gt__: <method-wrapper '__gt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__hash__: <method-wrapper '__hash__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__getstate__: <built-in method __getstate__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__gt__: <method-wrapper '__gt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__hash__: <method-wrapper '__hash__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init__: <method-wrapper '__init__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x00007FF898900770>
+__gt__: <method-wrapper '__gt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__hash__: <method-wrapper '__hash__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init__: <method-wrapper '__init__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x00007FF898900770>
+__le__: <method-wrapper '__le__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__lt__: <method-wrapper '__lt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__ne__: <method-wrapper '__ne__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__hash__: <method-wrapper '__hash__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init__: <method-wrapper '__init__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x00007FF898900770>
+__le__: <method-wrapper '__le__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__lt__: <method-wrapper '__lt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__ne__: <method-wrapper '__ne__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__new__: <built-in method __new__ of type object at 0x00007FF898900770>
+__pyx_vtable__: <capsule object NULL at 0x00000186B767D560>
+__init__: <method-wrapper '__init__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__init_subclass__: <built-in method __init_subclass__ of type object at 0x00007FF898900770>
+__le__: <method-wrapper '__le__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__lt__: <method-wrapper '__lt__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__ne__: <method-wrapper '__ne__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__new__: <built-in method __new__ of type object at 0x00007FF898900770>
+__pyx_vtable__: <capsule object NULL at 0x00000186B767D560>
+__reduce__: <built-in method __reduce_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__repr__: <built-in method __repr__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__new__: <built-in method __new__ of type object at 0x00007FF898900770>
+__pyx_vtable__: <capsule object NULL at 0x00000186B767D560>
+__reduce__: <built-in method __reduce_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__repr__: <built-in method __repr__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setattr__: <method-wrapper '__setattr__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__reduce__: <built-in method __reduce_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__repr__: <built-in method __repr__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setattr__: <method-wrapper '__setattr__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setstate__: <built-in method __setstate_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__sizeof__: <built-in method __sizeof__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__reduce_ex__: <built-in method __reduce_ex__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__repr__: <built-in method __repr__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setattr__: <method-wrapper '__setattr__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setstate__: <built-in method __setstate_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__sizeof__: <built-in method __sizeof__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__str__: <method-wrapper '__str__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setattr__: <method-wrapper '__setattr__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setstate__: <built-in method __setstate_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__sizeof__: <built-in method __sizeof__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__str__: <method-wrapper '__str__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__setstate__: <built-in method __setstate_cython__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__sizeof__: <built-in method __sizeof__ of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__str__: <method-wrapper '__str__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x00007FF898900770>
+average_rate: 10000000/333333
+base_rate: 10000000/333333
+__str__: <method-wrapper '__str__' of av.video.stream.VideoStream object at 0x000001869A3B26B0>
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x00007FF898900770>
+average_rate: 10000000/333333
+base_rate: 10000000/333333
+__subclasshook__: <built-in method __subclasshook__ of type object at 0x00007FF898900770>
+average_rate: 10000000/333333
+base_rate: 10000000/333333
+codec_context: <av.VideoCodecContext video/mjpeg at 0x1869a49b420>
+container: <av.InputContainer 'video=V380 FHD Camera'>
+decode: <bound method VideoStream.decode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+base_rate: 10000000/333333
+codec_context: <av.VideoCodecContext video/mjpeg at 0x1869a49b420>
+container: <av.InputContainer 'video=V380 FHD Camera'>
+decode: <bound method VideoStream.decode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+codec_context: <av.VideoCodecContext video/mjpeg at 0x1869a49b420>
+container: <av.InputContainer 'video=V380 FHD Camera'>
+decode: <bound method VideoStream.decode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+container: <av.InputContainer 'video=V380 FHD Camera'>
+decode: <bound method VideoStream.decode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+display_aspect_ratio: 256/81
+disposition: Disposition(0)
+display_aspect_ratio: 256/81
+disposition: Disposition(0)
+duration: None
+duration: None
+encode: <bound method VideoStream.encode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+encode: <bound method VideoStream.encode of <av.VideoStream #0 mjpeg, yuvj420p 1920x1080 at 0x1869a3b26b0>>
+frames: 0
+guessed_rate: 10000000/333333
+id: 0
+id: 0
+index: 0
+index: 0
+language: None
+metadata: {}
+profile: Baseline
+profiles: ['Baseline', 'Sequential', 'Progressive', 'Lossless', 'JPEG LS']
+sample_aspect_ratio: 16/9
+start_time: 185679820537
+time_base: 1/10000000
+type: video

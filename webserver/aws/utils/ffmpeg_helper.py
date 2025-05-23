@@ -52,7 +52,8 @@ def libx264_encoder():
     encoder.height = SOURCE_HEIGHT
     encoder.pix_fmt = 'yuv420p'
     encoder.bit_rate = 2000000  
-    encoder.framerate = 30 
+    encoder.framerate = 25 
+    encoder.profile = 'Main'
     encoder.options = {'tune': 'zerolatency'} 
     Log.info(f"Using libxh264_encoder")
     return encoder
@@ -64,6 +65,11 @@ def get_decoder(decoder_name: str, device_type: str | None):
             hwaccel = HWAccel(device_type, allow_software_fallback=False)
 
         decoder = av.CodecContext.create(decoder_name, 'r', hwaccel)
+        decoder.frame_rate = 25
+        decoder.rate = 25
+        decoder.profile = 'Main'
+
+
         Log.info(f"Using decoders {decoder_name}. HwAccel is supported: {decoder.is_hwaccel}")
         return decoder
     

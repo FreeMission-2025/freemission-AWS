@@ -15,9 +15,22 @@ from av.video.frame import VideoFrame
 import cv2
 import requests
 
-HOST = '192.168.18.48'
+system = platform.system()
+try:
+    if system == 'Linux':
+        import uvloop
+        uvloop.install()
+    elif system == 'Windows':
+        import winloop
+        winloop.install()
+except ModuleNotFoundError:
+    pass
+except Exception as e:
+    print(f"Error when installing loop: {e}")
+
+HOST = '16.78.8.232'
 PORT = 8086
-MAX_UDP_PACKET_SIZE = 1450  #
+MAX_UDP_PACKET_SIZE = 6000  #
 WIDTH, HEIGHT = 640, 480
 
 # Custom protocol markers
@@ -36,7 +49,7 @@ ACK_SIZE      = struct.calcsize(ACK_FORMAT)
 frame_id_counter = 0
 
 class UDPSender(asyncio.DatagramProtocol):
-    def __init__(self, window_size=26, timeout=1000):
+    def __init__(self, window_size=120, timeout=300):
         self.transport     = None
         self._send_queue   = asyncio.Queue()         # (fid, idx, packet)
         self._pending      = {}              # (fid,idx) -> (packet, last_send_ms)
@@ -136,7 +149,7 @@ class UDPSender(asyncio.DatagramProtocol):
                 now = int(time.time() * 1000)
                 self._pending[(fid, idx)] = (packet, now)
                 heapq.heappush(self._heap, (now + self.timeout, fid, idx))
-                await asyncio.sleep(0.015) 
+                await asyncio.sleep(0) 
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -162,7 +175,7 @@ class UDPSender(asyncio.DatagramProtocol):
                         self._pending[key] = (packet, now)  # update send time
                         heapq.heappush(self._heap, (now + self.timeout, fid, idx))
                 
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.15)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -266,22 +279,31 @@ async def main():
 
     # Capture Task
     async def capture():
-        await asyncio.sleep(2)
         time_base_backup = Fraction (1/1000000)
+        pts_backup = 0
         try:
             async for packet in async_packet_generator(container.demux(video_stream)):
                 if packet.stream.type == 'video':
                     if packet.pts is None:
-                        packet.pts = 0
+                        packet.pts = pts_backup
+                        pts_backup += 1
                     if packet.time_base is None:
-                        packet.time_Base = time_base_backup
+                       packet.time_base = time_base_backup
 
-                    timestamp_us = int(packet.pts * packet.time_base * 1_000_000) # type: ignore
+
                     frame_type = 1 if packet.is_keyframe else 0
 
-                    # Chunk Data: timestamp (8 byte) || frame_type (1 byte) || raw H.264  (N byte)
-                    packet_data = struct.pack(">QB", timestamp_us, frame_type) + bytes(packet)
+                    # Structure: time_base.num (8) | time_base.den (8) | pts (8) | dts (8) | frame_type (1) | duration(4) | raw H.264 (N Byte)
+                    nume = packet.time_base.numerator
+                    denu = packet.time_base.denominator
+                    pts  = packet.pts if packet.pts is not None else 0
+                    dts  = packet.dts if packet.dts is not None else 0
+                    duration = packet.duration if packet.duration is not None else 0
+
+                    chunk = struct.pack(">QQqqBI", nume, denu, pts, dts, frame_type, duration)
+                    packet_data = chunk + bytes(packet)
                     await frame_queue.put(packet_data)
+
                 await asyncio.sleep(0)
         except KeyboardInterrupt:
             return

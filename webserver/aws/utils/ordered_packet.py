@@ -5,7 +5,7 @@ from utils.logger import Log
 from constants import frame_dispatch_reset, INFERENCE_ENABLED, INCOMING_FORMAT, OUTGOING_FORMAT, Format
 
 class OrderedPacketDispatcher:
-    def __init__(self, input: asyncio.Queue, output: asyncio.Queue | list[asyncio.Queue], max_fps=30, timeout=0.5, poll_interval=0.03):
+    def __init__(self, input: asyncio.Queue, output: asyncio.Queue | list[asyncio.Queue], max_fps=30, timeout=0.5, poll_interval=0.05):
         assert isinstance(input, asyncio.Queue), "input_queue must be a ShmQueue instance."
         
         self.input = input

@@ -119,16 +119,25 @@ async def encode_video(frame_queue: multiprocessing.Queue, encode_queue: multipr
 
             img_yuv = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420)
             video_frame = av.VideoFrame.from_ndarray(img_yuv, format='yuv420p')
-            encoded_packet = encoder.encode(video_frame) 
+            encoded_packet: list[av.Packet] = encoder.encode(video_frame) 
 
             if len(encoded_packet) == 0:
                 continue
 
-            timestamp_us = int(encoded_packet[0].pts * encoded_packet[0].time_base * 1_000_000)
+            #timestamp_us = int(encoded_packet[0].pts * encoded_packet[0].time_base * 1_000_000)
             frame_type = 1 if encoded_packet[0].is_keyframe else 0
 
-            # Chunk Data: timestamp (8 byte) || frame_type (1 byte) || raw H.264  (N byte)
-            packet_data = struct.pack(">QB", timestamp_us, frame_type) + bytes(encoded_packet[0])
+            # Structure: time_base.num (8) | time_base.den (8) | pts (8) | dts (8) | frame_type (1) | duration(4) | raw H.264 (N Byte)
+            nume = encoded_packet[0].time_base.numerator
+            denu = encoded_packet[0].time_base.denominator
+            pts  = encoded_packet[0].pts if encoded_packet[0].pts is not None else 0
+            dts  = encoded_packet[0].dts if encoded_packet[0].dts is not None else 0
+            duration = encoded_packet[0].duration if encoded_packet[0].duration is not None else 0
+
+            print(f"time_base: {nume}/{denu}, pts: {pts}, dts: {dts}, duration: {duration}")
+
+            chunk = struct.pack(">QQqqBI", nume, denu, pts, dts, frame_type, duration)
+            packet_data = chunk + bytes(encoded_packet[0])
 
             if not encode_queue.full():
                 encode_queue.put_nowait(packet_data)

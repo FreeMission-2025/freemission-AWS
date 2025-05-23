@@ -29,7 +29,7 @@ from zlib import crc32
 '''
 EC2_TCP_IP = "127.0.0.1"
 EC2_TCP_PORT = 8087
-CAMERA_INDEX = 0
+CAMERA_INDEX = 1
 
 
 ''' Global Variable '''
@@ -170,7 +170,7 @@ async def main():
                 if frame is None:
                     continue
 
-                _, encoded_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                _, encoded_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 55])
                 encoded_frame = encoded_frame.tobytes()
 
                 #print(len(encoded_frame))

@@ -54,13 +54,21 @@
             const arrayBuffer = event.data;  // Already ArrayBuffer because binaryType
             const dv = new DataView(arrayBuffer);
 
-            // Read metadata from the first 9 bytes
-            const timestamp_us = Number(dv.getBigUint64(0, false)); // big-endian timestamp
-            const frameTypeByte = dv.getUint8(8);
+            // Parse metadata from the first 37 bytes
+            const nume = Number(dv.getBigUint64(0, false));     // offset 0
+            const denu = Number(dv.getBigUint64(8, false));     // offset 8
+            const pts  = Number(dv.getBigInt64(16, false));     // offset 16
+            const dts  = Number(dv.getBigInt64(24, false));     // offset 24
+            const frameTypeByte = dv.getUint8(32);              // offset 32
+            const duration = dv.getUint32(33, false);           // offset 33
+
             const frameType = frameTypeByte === 1 ? "key" : "delta";
 
-            // Extract the raw frame data (skip the first 9 bytes: timestamp + frame type)
-            const rawFrame = new Uint8Array(arrayBuffer, 9);
+            // Convert pts to microseconds using time_base
+            const timestamp_us = Math.round((pts * 1_000_000 * nume) / denu);
+
+            // Extract H.264 frame data
+            const rawFrame = new Uint8Array(arrayBuffer, 37);
 
             try {
                 decoder.decode(new EncodedVideoChunk({

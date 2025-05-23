@@ -12,7 +12,20 @@ from zlib import crc32
 from av.video.frame import VideoFrame
 import cv2
 
-HOST = '192.168.18.48'
+system = platform.system()
+try:
+    if system == 'Linux':
+        import uvloop
+        uvloop.install()
+    elif system == 'Windows':
+        import winloop
+        winloop.install()
+except ModuleNotFoundError:
+    pass
+except Exception as e:
+    print(f"Error when installing loop: {e}")
+
+HOST = '16.78.8.232'
 PORT = 8088
 WIDTH, HEIGHT = 640, 480
 
@@ -68,6 +81,7 @@ def set_sock_props(writer: asyncio.StreamWriter):
         print(f"new SO_RCVBUF: {new_rcvbuf} bytes")
         print(f"new new_sndbuf: {new_sndbuf} bytes")
 
+   
 async def async_packet_generator(demuxer) -> AsyncGenerator[Packet, None]:
     """Wrap blocking demux generator in async-friendly way."""
     for packet in demuxer:
@@ -120,9 +134,9 @@ async def main():
         '/dev/video0', format='v4l2',
         options={
             'video_size': f'{WIDTH}x{HEIGHT}',
-            'framerate': '30',
+            'framerate': '25',
             'input_format': 'h264', 'use_wallclock_as_timestamps': '1',
-            '-an': '', 'fflags': '+genpts', 'avoid_negative_ts': 'make_zero',
+             '-an': ' ', 'fflags': '+genpts', 'avoid_negative_ts': 'make_zero',
             'copytb': '1', 'c': 'copy', 'f': 'h264',
         }
     )
@@ -142,19 +156,27 @@ async def main():
     # Capture Task
     async def capture():
         time_base_backup = Fraction (1/1000000)
+        pts_backup = 0
         try:
             async for packet in async_packet_generator(container.demux(video_stream)):
                 if packet.stream.type == 'video':
                     if packet.pts is None:
-                        packet.pts = 0
+                        packet.pts = pts_backup
+                        pts_backup += 1
                     if packet.time_base is None:
-                        packet.time_Base = time_base_backup
+                       packet.time_base = time_base_backup
 
-                    timestamp_us = int(packet.pts * packet.time_base * 1_000_000) # type: ignore
                     frame_type = 1 if packet.is_keyframe else 0
 
-                    # Chunk Data: timestamp (8 byte) || frame_type (1 byte) || raw H.264  (N byte)
-                    packet_data = struct.pack(">QB", timestamp_us, frame_type) + bytes(packet)
+                    # Structure: time_base.num (8) | time_base.den (8) | pts (8) | dts (8) | frame_type (1) | duration(4) | raw H.264 (N Byte)
+                    nume = packet.time_base.numerator
+                    denu = packet.time_base.denominator
+                    pts  = packet.pts if packet.pts is not None else 0
+                    dts  = packet.dts if packet.dts is not None else 0
+                    duration = packet.duration if packet.duration is not None else 0
+
+                    chunk = struct.pack(">QQqqBI", nume, denu, pts, dts, frame_type, duration)
+                    packet_data = chunk + bytes(packet)
                     frame_queue.put_nowait(packet_data)
                 
                 await asyncio.sleep(0)

@@ -11,7 +11,20 @@ from zlib import crc32
 from av.video.frame import VideoFrame
 import cv2
 
-HOST = '192.168.18.48'
+system = platform.system()
+try:
+    if system == 'Linux':
+        import uvloop
+        uvloop.install()
+    elif system == 'Windows':
+        import winloop
+        winloop.install()
+except ModuleNotFoundError:
+    pass
+except Exception as e:
+    print(f"Error when installing loop: {e}")
+
+HOST = '16.78.8.232'
 PORT = 8087
 WIDTH, HEIGHT = 640, 480
 JPEG_QUALITY = 50

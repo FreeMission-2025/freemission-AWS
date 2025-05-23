@@ -54,13 +54,23 @@
 
         // Step 2: Read metadata header
         const dv = new DataView(rawFrame.buffer);
-        const timestamp_us = Number(dv.getBigUint64(0, false)); // big-endian
-        const frameTypeByte = dv.getUint8(8);
-        const frameType = frameTypeByte === 1 ? "key" : "delta";
         
-        // Step 3: Extract the actual raw frame data
-        const frameData = new Uint8Array(rawFrame.buffer.slice(9)); // Skip the first 9 bytes (timestamp + type)
-            
+        // Parse metadata from the first 37 bytes
+        const nume = Number(dv.getBigUint64(0, false));     // offset 0
+        const denu = Number(dv.getBigUint64(8, false));     // offset 8
+        const pts  = Number(dv.getBigInt64(16, false));     // offset 16
+        const dts  = Number(dv.getBigInt64(24, false));     // offset 24
+        const frameTypeByte = dv.getUint8(32);              // offset 32
+        const duration = dv.getUint32(33, false);           // offset 33
+
+        const frameType = frameTypeByte === 1 ? "key" : "delta";
+
+        // Convert pts to microseconds using time_base
+        const timestamp_us = Math.round((pts * 1_000_000 * nume) / denu);
+
+        // Extract H.264 frame data
+        const frameData = new Uint8Array(rawFrame.buffer.slice(37));
+        
         const chunk = new EncodedVideoChunk({
             timestamp: timestamp_us, // microseconds
             type: frameType, 

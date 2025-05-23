@@ -100,12 +100,15 @@ class H264_TO_H264_Consumer(BaseConsumer):
                     continue
                 
                 #print(len(bytes(encoded_packet[0])))
-
-                timestamp_us = int(encoded_packet[0].pts * encoded_packet[0].time_base * 1_000_000)
                 frame_type = 1 if encoded_packet[0].is_keyframe else 0
+                nume = encoded_packet[0].time_base.numerator
+                denu = encoded_packet[0].time_base.denominator
+                pts  = encoded_packet[0].pts if encoded_packet[0].pts is not None else 0
+                dts  = encoded_packet[0].dts if encoded_packet[0].dts is not None else 0
+                duration = encoded_packet[0].duration if encoded_packet[0].duration is not None else 0
 
-                # timestamp (8 byte) || frame_type (1 byte) || raw H.264  (N byte)
-                packet_data = struct.pack(">QB", timestamp_us, frame_type) + bytes(encoded_packet[0])
+                chunk = struct.pack(">QQqqBI", nume, denu, pts, dts, frame_type, duration)
+                packet_data = chunk + bytes(encoded_packet[0])
 
                 timestamped_frame = (time.time(), packet_data)
                 for q in self.frame_queue:
