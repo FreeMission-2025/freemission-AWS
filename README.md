@@ -1,3 +1,8 @@
+### Archived and moved for easier development
+Raspi : [Github Link](https://github.com/FreeMission-2025/FM-Raspi)
+
+AWS: [Github Link](https://github.com/FreeMission-2025/FM-Raspi)
+
 # freemission-AWS
 
 # Setup
