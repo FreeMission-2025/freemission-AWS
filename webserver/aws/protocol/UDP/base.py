@@ -49,6 +49,8 @@ class BaseUDP(asyncio.DatagramProtocol):
         Log.info(f"Default SO_RCVBUF: {default_sndbuf} bytes")
 
         platforms = platform.system()
+        original_rmem_max = 0
+        original_wmem_max = 0
         if platforms == "Linux":
             original_rmem_max = subprocess.check_output(["sysctl", "net.core.rmem_max"]).decode().strip().split('=')[1]
             Log.info(f"Original rmem_max: {original_rmem_max} bytes")
@@ -65,10 +67,12 @@ class BaseUDP(asyncio.DatagramProtocol):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 32 * 1024 * 1024)
 
         if platforms == "Linux":
-            Log.info("Restoring default value of rmem_max")
-            subprocess.run(["sysctl", "-w", f"net.core.rmem_max={original_rmem_max}"], check=True)
-            Log.info("Restoring default value of wmem_max")
-            subprocess.run(["sysctl", "-w", f"net.core.wmem_max={original_wmem_max}"], check=True)
+            if original_rmem_max != 0:
+                Log.info("Restoring default value of rmem_max")
+                subprocess.run(["sysctl", "-w", f"net.core.rmem_max={original_rmem_max}"], check=True)
+            if original_wmem_max != 0:
+                Log.info("Restoring default value of wmem_max")
+                subprocess.run(["sysctl", "-w", f"net.core.wmem_max={original_wmem_max}"], check=True)
 
         new_rcvbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
         new_sndbuf = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)

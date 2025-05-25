@@ -1,11 +1,7 @@
 import ctypes
 from dataclasses import dataclass
-from multiprocessing import Lock, Semaphore, Value, shared_memory, Array
-from multiprocessing.sharedctypes import Synchronized, SynchronizedArray
-from multiprocessing.synchronize import Lock as _Lock
-from multiprocessing.synchronize import Semaphore as _Semaphore
-from multiprocessing.synchronize import Semaphore as _Semaphore
-
+from utils.multi_process import shared_memory, Synchronized, SynchronizedArray
+from utils.multi_process import _Lock, _Semaphore
 import numpy as np
 
 @dataclass
@@ -107,8 +103,14 @@ class ShmQueue:
     def full(self) -> bool:
         """Return True if the queue is full."""
         return self.qsize() == self.capacity
+    
+    def close(self):
+        """Should be called once by parent & child process"""
+        for shm in self.shms:
+            shm.close()
 
     def cleanup(self):
+        """Should be called only by parrent process"""
         for shm in self.shms:
             shm.close()
             try:

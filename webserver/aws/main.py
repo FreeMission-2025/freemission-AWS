@@ -1,31 +1,27 @@
-from multiprocessing import shared_memory
-import platform
-import signal
-from typing import Any
-from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP
-from utils.logger import Log
-
-system = platform.system()
-try:
-    if system == 'Linux':
-        import uvloop
-        uvloop.install()
-    elif system == 'Windows':
-        import winloop
-        winloop.install()
-except ModuleNotFoundError:
-    pass
-except Exception as e:
-    print(f"Error when installing loop: {e}")
-
-from app import app
-import asyncio
-from hypercorn.config import Config
-from hypercorn.asyncio import serve
-import os   
-
-
 def main():
+    import platform
+    system = platform.system()
+    try:
+        if system == 'Linux':
+            import uvloop
+            uvloop.install()
+        elif system == 'Windows':
+            import winloop
+            winloop.install()
+    except ModuleNotFoundError:
+        pass
+    except Exception as e:
+        print(f"Error when installing loop: {e}")
+
+    from constants import HTTP_PORT, HTTPS_PORT, QUIC_PORT, PUBLIC_IP
+    from utils.logger import Log
+
+    from app import app
+    import asyncio
+    from hypercorn.config import Config
+    from hypercorn.asyncio import serve
+    import os   
+
     current_file = os.path.abspath(__file__)
     current_dir = os.path.dirname(current_file)
     cert_path = os.path.join(current_dir, "../",  "certificate", "cert.pem")
@@ -64,7 +60,13 @@ def main():
         asyncio.run(ctx.cleanup())
 
 if __name__ == "__main__":
-    main()
-
+    # Explicitly set spawn method beause linux by default use fork 
+    # Fork makes socket, file descriptors, & other resources shared with child process which is so bad
+    try:
+        import multiprocessing
+        multiprocessing.set_start_method('spawn')
+        main()
+    except Exception as e:
+        print(f"Error when starting main process: {e}")
 
 #openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 365 -config ssl.conf -extensions req_ext

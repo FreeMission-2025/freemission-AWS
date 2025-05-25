@@ -65,7 +65,7 @@ def get_decoder(decoder_name: str, device_type: str | None):
             hwaccel = HWAccel(device_type, allow_software_fallback=False)
 
         decoder = av.CodecContext.create(decoder_name, 'r', hwaccel)
-        decoder.frame_rate = 25
+        #decoder.frame_rate = 25
         decoder.rate = 25
         decoder.profile = 'Main'
 

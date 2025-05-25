@@ -140,19 +140,23 @@ class ObjectDetection:
         return frame
 
     def run(self):
-        while True:
-            try:
-                frame, frame_id = self.input_queue.get()
-                
-                # Perform inference
-                detections = self.infer(frame)
-                
-                # Draw detections on the frame
-                frame = self.draw_detections(frame, detections)
+        try:
+            while True:
+                try:
+                    frame, frame_id = self.input_queue.get()
+                    
+                    # Perform inference
+                    detections = self.infer(frame)
+                    
+                    # Draw detections on the frame
+                    frame = self.draw_detections(frame, detections)
 
-                self.output_queue.put(frame.copy(), frame_id)
+                    self.output_queue.put(frame.copy(), frame_id)
 
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                Log.exception(f"error at inference: {e}")
+                except KeyboardInterrupt:
+                    break
+                except Exception as e:
+                    Log.exception(f"error at inference: {e}")
+        finally:
+            self.input_queue.close()
+            self.output_queue.close()
